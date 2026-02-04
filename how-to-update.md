@@ -25,8 +25,9 @@ pnpm build
 # Edit package.json manually or use:
 npm version prerelease
 
-# 5. Publish to GitHub Packages
-npm publish --ignore-scripts --access public
+# 5. Publish to GitHub Packages (requires write:packages scope)
+# Run: gh auth refresh -s write:packages (one-time setup)
+GITHUB_TOKEN=$(gh auth token) npm publish --ignore-scripts --access public
 
 # 6. Push to your fork
 git push kenneth-s master
