@@ -1,13 +1,13 @@
 ﻿import type { Theme } from '@ant-design/cssinjs';
 import { useCacheToken } from '@ant-design/cssinjs';
 import { ConfigProvider as AntdConfigProvider, theme as antdTheme } from 'antd';
-import zh_CN from 'antd/es/locale/zh_CN';
+import en_US from 'antd/es/locale/en_US';
 import dayjs from 'dayjs';
-import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/en';
 import React, { useContext, useEffect, useMemo } from 'react';
 import { SWRConfig, useSWRConfig } from 'swr';
 import type { IntlType } from './intl';
-import { findIntlKeyByAntdLocaleKey, intlMap, zhCNIntl } from './intl';
+import { enUSIntl, findIntlKeyByAntdLocaleKey, intlMap } from './intl';
 import type { DeepPartial, ProTokenType } from './typing/layoutToken';
 import { getLayoutDesignToken } from './typing/layoutToken';
 import type { ProAliasToken } from './useStyle';
@@ -171,7 +171,7 @@ export type ConfigContextPropsType = {
 /* Creating a context object with the default values. */
 const ProConfigContext = React.createContext<ConfigContextPropsType>({
   intl: {
-    ...zhCNIntl,
+    ...enUSIntl,
     locale: 'default',
   },
   valueTypeMap: {},
@@ -263,8 +263,8 @@ const ConfigProviderContainer: React.FC<{
     const resolvedIntl =
       intl ??
       (localeName && proProvide.intl?.locale === 'default'
-        ? intlMap[key! as 'zh-CN']
-        : proProvide.intl || intlMap[key! as 'zh-CN']);
+        ? intlMap[key! as 'en-US']
+        : proProvide.intl || intlMap[key! as 'en-US']);
     return {
       ...proProvide,
       dark: dark ?? proProvide.dark,
@@ -274,7 +274,7 @@ const ConfigProviderContainer: React.FC<{
         themeId: tokenContext.theme.id,
         layout: proLayoutTokenMerge,
       }),
-      intl: resolvedIntl || zhCNIntl,
+      intl: resolvedIntl || enUSIntl,
     };
   }, [
     locale?.locale,
@@ -330,7 +330,7 @@ const ConfigProviderContainer: React.FC<{
   }, [nativeHashId, proProvide.hashed, props.hashed]);
 
   useEffect(() => {
-    dayjs.locale(locale?.locale || 'zh-cn');
+    dayjs.locale(locale?.locale || 'en');
   }, [locale?.locale]);
 
   const themeConfig = useMemo(() => {
@@ -432,7 +432,7 @@ export const ProConfigProvider: React.FC<{
   // 自动注入 antd 的配置
   const configProvider = {
     ...rest,
-    locale: locale || zh_CN,
+    locale: locale || en_US,
     theme: omitUndefined({
       ...theme,
       algorithm: mergeAlgorithm(),
@@ -464,11 +464,11 @@ export function useIntl(): IntlType {
 
   if (locale?.locale) {
     return (
-      intlMap[findIntlKeyByAntdLocaleKey(locale.locale) as 'zh-CN'] || zhCNIntl
+      intlMap[findIntlKeyByAntdLocaleKey(locale.locale) as 'en-US'] || enUSIntl
     );
   }
 
-  return zhCNIntl;
+  return enUSIntl;
 }
 
 ProConfigContext.displayName = 'ProProvider';

@@ -122,7 +122,6 @@
     "@vitest/coverage-istanbul": "^3.2.4",
     "@vitest/ui": "^3.2.4",
     "animated-scroll-to": "^2.3.2",
-    "antd": "^6.3.1",
     "chalk": "^4.1.2",
     "copy-to-clipboard": "^3.3.3",
     "cross-env": "^10.1.0",
@@ -196,8 +195,5 @@
     "chencheng <sorrycc@gmail.com> (https://github.com/sorrycc)",
     "chenshuai2144 <qixian.cs@outlook.com> (https://github.com/chenshuai2144)"
   ],
-  "gitHooks": {
-    "pre-commit": "pretty-quick --staged",
-    "commit-msg": "fabric verify-commit"
-  }
+  "gitHooks": {}
 }
