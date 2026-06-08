@@ -35,13 +35,17 @@ import { TopNavHeader } from './components/TopNavHeader';
 import type { RouteContextType } from './context/RouteContext';
 import { RouteContext } from './context/RouteContext';
 import { getPageTitle } from './getPageTitle';
-import type { ProLayoutProps } from './ProLayout';
+import type {
+  ProLayoutLayoutMode,
+  ProLayoutMenuRenderCallbackProps,
+  ProLayoutProps,
+} from './ProLayout';
 import { ProLayout } from './ProLayout';
 import { getMenuData } from './utils/getMenuData';
 
 // WaterMark component has been removed, please use antd Watermark directly
 export type { ProSettings, ProSettings as Settings } from './defaultSettings';
-export type { MenuDataItem } from './typing';
+export type { MenuDataItem, RouterTypes } from './typing';
 export {
   BaseMenu,
   DefaultFooter,
@@ -73,6 +77,8 @@ export type {
   NavMenuSubmenuNode,
   PageContainerProps,
   PageHeaderProps,
+  ProLayoutLayoutMode,
+  ProLayoutMenuRenderCallbackProps,
   ProLayoutNavMenuDomProps,
   ProLayoutNavMenuProps,
   ProLayoutNavMenuSelectInfo,

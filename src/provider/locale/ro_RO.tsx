@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const roRO: ProLocale = {
   moneySymbol: 'RON',
   deleteThisLine: 'Șterge acest rând',
   copyThisLine: 'Copiază acest rând',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: 'Se poate edita doar un rând simultan',
+    onlyAddOneLine: 'Se poate adăuga doar un rând simultan',
     action: {
       save: 'Salvează',
       cancel: 'Anulează',
@@ -72,3 +75,5 @@ export default {
     close: 'Închide',
   },
 };
+
+export default roRO;

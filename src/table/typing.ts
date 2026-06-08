@@ -14,11 +14,7 @@ import type React from 'react';
 import type { CSSProperties, Key } from 'react';
 import type { ProCardProps } from '../card';
 import type { ProFieldEmptyText } from '../field';
-import type {
-  LightWrapperProps,
-  ProFormProps,
-  QueryFilterProps,
-} from '../form';
+import type { ProFormProps, QueryFilterProps } from '../form';
 import type {
   LabelTooltipType,
   ProCoreActionType,
@@ -185,10 +181,7 @@ export type ProColumnType<T = unknown, ValueType = 'text'> = ProSchema<
         };
   },
   ProSchemaComponentTypes,
-  ValueType,
-  {
-    lightProps?: LightWrapperProps;
-  }
+  ValueType
 >;
 
 export type ProColumns<T = any, ValueType = 'text'> = ProColumnType<
@@ -274,7 +267,8 @@ export type ProTableProps<DataSource, U, ValueType = 'text'> = {
    */
   tableViewRender?: (
     props: TableProps<DataSource>,
-    defaultDom: JSX.Element,
+    /** 懒执行：为函数时请在需要默认 Table 时调用，避免 ProList 等仅替换视图时创建未挂载的 Table */
+    defaultDom: JSX.Element | (() => JSX.Element),
   ) => JSX.Element | undefined;
 
   /**

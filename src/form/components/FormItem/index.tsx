@@ -1,19 +1,16 @@
-﻿import { omit } from '@rc-component/util';
+import { omit } from '@rc-component/util';
 import type { FormItemProps } from 'antd';
-import { ConfigProvider, Form } from 'antd';
+import { Form } from 'antd';
 import type { NamePath } from 'antd/lib/form/interface';
 import React, { useContext, useEffect, useMemo } from 'react';
+import type { ProFieldValueType } from '../../../utils';
 import {
-  isDropdownValueType,
   omitUndefined,
   SearchConvertKeyFn,
   SearchTransformKeyFn,
   useDeepCompareMemo,
   useRefFunction,
 } from '../../../utils';
-import type { ProFieldValueType } from '../../../utils/typing';
-import type { LightWrapperProps } from '../../BaseForm';
-import { LightWrapper } from '../../BaseForm';
 import FieldContext from '../../FieldContext';
 import { FormListContext } from '../List';
 
@@ -37,10 +34,14 @@ const WithValueFomFiledProps: React.FC<
     children: filedChildren,
     onChange,
     onBlur,
-    ignoreFormItem,
+    ignoreFormItem: _ignoreFormItem,
     valuePropName = 'value',
     ...restProps
   } = formFieldProps;
+
+  const filedChildrenElementProps = React.isValidElement(filedChildren)
+    ? (filedChildren.props as Record<string, any>)
+    : undefined;
 
   const isProFormComponent =
     // @ts-ignore
@@ -52,37 +53,29 @@ const WithValueFomFiledProps: React.FC<
     onChange?.(...restParams);
     if (isProFormComponent) return;
     if (isValidElementForFiledChildren) return undefined;
-    filedChildren?.props?.onChange?.(...restParams);
+    filedChildrenElementProps?.onChange?.(...restParams);
 
-    (filedChildren?.props as Record<string, any>)?.fieldProps?.onChange?.(
-      ...restParams,
-    );
+    filedChildrenElementProps?.fieldProps?.onChange?.(...restParams);
   });
 
   const onBlurMemo = useRefFunction(function (...restParams: any[]): void {
     if (isProFormComponent) return;
     if (isValidElementForFiledChildren) return;
     onBlur?.(...restParams);
-    filedChildren?.props?.onBlur?.(...restParams);
-    (filedChildren?.props as Record<string, any>)?.fieldProps?.onBlur?.(
-      ...restParams,
-    );
+    filedChildrenElementProps?.onBlur?.(...restParams);
+    filedChildrenElementProps?.fieldProps?.onBlur?.(...restParams);
   });
+
+  const childFieldProps = filedChildrenElementProps?.fieldProps;
 
   const omitOnBlurAndOnChangeProps = useDeepCompareMemo(
     () =>
       omit(
         // @ts-ignore
-        filedChildren?.props?.fieldProps || {},
+        childFieldProps || {},
         ['onBlur', 'onChange'],
       ),
-    [
-      omit(
-        // @ts-ignore
-        filedChildren?.props?.fieldProps || {},
-        ['onBlur', 'onChange'],
-      ),
-    ],
+    [childFieldProps],
   );
   const propsValuePropName = formFieldProps[valuePropName];
 
@@ -114,9 +107,9 @@ const WithValueFomFiledProps: React.FC<
     if (!React.isValidElement(filedChildren)) return undefined;
     return (...restParams: any[]) => {
       onChange?.(...restParams);
-      filedChildren?.props?.onChange?.(...restParams);
+      filedChildrenElementProps?.onChange?.(...restParams);
     };
-  }, [fieldProps, filedChildren, onChange]);
+  }, [fieldProps, filedChildren, filedChildrenElementProps, onChange]);
 
   if (!React.isValidElement(filedChildren)) return <>{filedChildren}</>;
 
@@ -129,13 +122,13 @@ const WithValueFomFiledProps: React.FC<
     omitUndefined({
       ...restProps,
       [valuePropName]: formFieldProps[valuePropName],
-      ...filedChildren.props,
+      ...filedChildrenElementProps,
       onChange: finalChange,
       // 只有当子组件是 ProFormComponent 时才传递 fieldProps，避免传递给原生 DOM 元素
       ...(!isProFormComponent && fieldProps
         ? {
             fieldProps: {
-              ...(filedChildren.props as Record<string, any>)?.fieldProps,
+              ...filedChildrenElementProps?.fieldProps,
               ...fieldPropsFromRest,
               ...fieldProps,
             },
@@ -143,7 +136,9 @@ const WithValueFomFiledProps: React.FC<
         : {}),
       ...(variantFromRest !== undefined && { variant: variantFromRest }),
       onBlur:
-        isProFormComponent && !isValidElementForFiledChildren && typeof onBlur === 'function'
+        isProFormComponent &&
+        !isValidElementForFiledChildren &&
+        typeof onBlur === 'function'
           ? onBlur
           : undefined,
     }),
@@ -199,30 +194,25 @@ const WarpFormItem: React.FC<
   help,
   ...props
 }) => {
-  const formDom = useMemo(() => {
-    let getValuePropsFunc: any = (value: any) => {
-      const newValue = convertValue?.(value, props.name!) ?? value;
-      if (props.getValueProps) return props.getValueProps(newValue);
-      return {
-        [valuePropName || 'value']: newValue,
-      };
-    };
-    if (!convertValue && !props.getValueProps) {
-      getValuePropsFunc = undefined;
-    }
-    if (!addonAfter && !addonBefore) {
-      return (
-        <Form.Item
-          {...props}
-          valuePropName={valuePropName}
-          getValueProps={getValuePropsFunc}
-        >
-          {children}
-        </Form.Item>
-      );
-    }
+  const getValuePropsFunc =
+    convertValue || props.getValueProps
+      ? (value: any) => {
+          const newValue = convertValue?.(value, props.name!) ?? value;
+          if (props.getValueProps) return props.getValueProps(newValue);
+          return { [valuePropName || 'value']: newValue };
+        }
+      : undefined;
 
-    return (
+  const formDom =
+    !addonAfter && !addonBefore ? (
+      <Form.Item
+        {...props}
+        valuePropName={valuePropName}
+        getValueProps={getValuePropsFunc}
+      >
+        {children}
+      </Form.Item>
+    ) : (
       <Form.Item
         {...props}
         help={typeof help !== 'function' ? help : undefined}
@@ -268,13 +258,11 @@ const WarpFormItem: React.FC<
             </>
           ),
         }}
-        {...props}
         getValueProps={getValuePropsFunc}
       >
         {children}
       </Form.Item>
     );
-  }, [addonAfter, addonBefore, children, convertValue?.toString(), props]);
 
   return (
     <FormItemProvide.Provider
@@ -307,31 +295,35 @@ export type ProFormItemProps = FormItemProps & {
    */
   transform?: SearchTransformKeyFn;
   dataFormat?: string;
-  lightProps?: LightWrapperProps;
   proFormFieldKey?: any;
   fieldProps?: Record<string, any>;
 } & WarpFormItemProps;
 
 const ProFormItem: React.FC<ProFormItemProps> = (props) => {
-  /** 从 context 中拿到的值 */
-  const { componentSize } = ConfigProvider?.useConfig?.() || {
-    componentSize: 'middle',
-  };
-  const size = componentSize;
   const {
     valueType,
     transform,
     dataFormat,
     ignoreFormItem,
-    lightProps,
-    children: unusedChildren,
-    fieldProps,
+    children: _unusedChildren,
+    fieldProps: _fieldProps,
+    // 显式解构 label/tooltip，防止它们从 ...rest 漏入 WarpFormItem 被覆盖
+    label,
+    tooltip,
     ...rest
   } = props;
   const formListField = useContext(FormListContext);
 
   // ProFromList 的 filed，里面有name和key
   /** 从 context 中拿到的值 */
+  const fieldValueTypeName = useMemo(() => {
+    if (props.name === undefined) return props.name;
+    if (formListField.listName !== undefined) {
+      return [formListField.listName, props.name].flat(1) as string[];
+    }
+    // 确保返回的是数组格式
+    return Array.isArray(props.name) ? props.name : [props.name];
+  }, [formListField.listName, props.name]);
   const name = useMemo(() => {
     if (props.name === undefined) return props.name;
     if (formListField.name !== undefined) {
@@ -351,32 +343,26 @@ const ProFormItem: React.FC<ProFormItemProps> = (props) => {
     }
     // Field.type === 'ProField' 时 props 里面是有 valueType 的，所以要设置一下
     // 写一个 ts 比较麻烦，用 any 顶一下
-    setFieldValueType(name, {
+    setFieldValueType(fieldValueTypeName, {
       valueType: valueType || 'text',
       dateFormat: dataFormat,
       transform,
     });
-  }, [name, dataFormat, props.name, setFieldValueType, transform, valueType]);
+  }, [
+    fieldValueTypeName,
+    dataFormat,
+    props.name,
+    setFieldValueType,
+    transform,
+    valueType,
+  ]);
 
-  const isDropdown =
-    React.isValidElement(props.children) &&
-    isDropdownValueType(valueType || props.children.props.valueType);
-
-  const noLightFormItem = useMemo(() => {
-    if (!lightProps?.light || lightProps?.customLightMode || isDropdown) {
-      return true;
-    }
-    return false;
-  }, [lightProps?.customLightMode, isDropdown, lightProps?.light]);
+  const formItemKey = rest.proFormFieldKey || rest.name?.toString();
 
   // formItem 支持function，如果是function 我就直接不管了
   if (typeof props.children === 'function') {
     return (
-      <WarpFormItem
-        {...rest}
-        name={name}
-        key={rest.proFormFieldKey || rest.name?.toString()}
-      >
+      <WarpFormItem {...rest} name={name} key={formItemKey}>
         {props.children}
       </WarpFormItem>
     );
@@ -384,40 +370,29 @@ const ProFormItem: React.FC<ProFormItemProps> = (props) => {
 
   const children = (
     <WithValueFomFiledProps
-      key={rest.proFormFieldKey || rest.name?.toString()}
+      key={formItemKey}
       valuePropName={props.valuePropName}
     >
       {props.children}
     </WithValueFomFiledProps>
   );
 
-  const lightPropsForWrapper = omitUndefined(lightProps || {});
-
-  const lightDom = noLightFormItem ? (
-    children
-  ) : (
-    <LightWrapper
-      {...lightPropsForWrapper}
-      key={rest.proFormFieldKey || rest.name?.toString()}
-      size={size as any}
-    >
-      {children}
-    </LightWrapper>
-  );
-  // 这里控制是否需要 LightWrapper，为了提升一点点性能
   if (ignoreFormItem) {
-    return <>{lightDom}</>;
+    return <>{children}</>;
   }
 
   return (
     <WarpFormItem
-      key={rest.proFormFieldKey || rest.name?.toString()}
+      key={formItemKey}
       {...formItemProps}
       {...rest}
+      // label/tooltip 已从 props 解构，通过这里显式传入，确保调用方传 undefined 时不被 rest/formItemProps 覆盖
+      label={label}
+      tooltip={tooltip}
       name={name}
       isListField={formListField.name !== undefined}
     >
-      {lightDom}
+      {children}
     </WarpFormItem>
   );
 };

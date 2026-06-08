@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const srRS: ProLocale = {
   moneySymbol: 'RSD',
+  deleteThisLine: 'Obriši ovaj red',
+  copyThisLine: 'Kopiraj ovaj red',
   form: {
     lightFilter: {
       more: 'Više',
@@ -57,6 +61,8 @@ export default {
     submitText: 'Prijavi se',
   },
   editableTable: {
+    onlyOneLineEditor: 'Može se uređivati samo jedan red odjednom',
+    onlyAddOneLine: 'Može se dodati samo jedan red odjednom',
     action: {
       save: 'Sačuvaj',
       cancel: 'Poništi',
@@ -65,7 +71,9 @@ export default {
     },
   },
   switch: {
-    open: 'Отворите',
-    close: 'Затворите',
+    open: 'Otvori',
+    close: 'Zatvori',
   },
 };
+
+export default srRS;

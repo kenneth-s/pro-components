@@ -51,19 +51,19 @@ So the props we set for ProFormText are actually for Form.Item, and the fieldPro
 
 ## Code examples
 
-<code src="../../demos/form/FieldSet/components-other.tsx" title="Form field"></code>
+<code src="../../demos/form/field-set/components-other.tsx" title="Form field"></code>
 
-<code src="../../demos/form/FieldSet/search-select.tsx" title="Query form"></code>
+<code src="../../demos/form/field-set/search-select.tsx" title="Query form"></code>
 
-<code src="../../demos/form/FieldSet/form-fieldset.tsx" title="Structured data" ></code>
+<code src="../../demos/form/field-set/form-fieldset.tsx" title="Structured data" ></code>
 
-<code src="../../demos/form/FieldSet/datatime.tsx" title="Date form"></code>
+<code src="../../demos/form/field-set/datetime.tsx" title="Date form"></code>
 
-<code src="../../demos/form/FieldSet/upload.tsx" title="Upload form"></code>
+<code src="../../demos/form/field-set/upload.tsx" title="Upload form"></code>
 
-<code src="../../demos/form/FieldSet/components-other-readonly.tsx" title="Read-only for form field"></code>
+<code src="../../demos/form/field-set/components-other-readonly.tsx" title="Read-only for form field"></code>
 
-<code src="../../demos/form/FieldSet/fieldSet-light.tsx" title="Used in Lightweight Filtering - light" ></code>
+<code src="../../demos/form/field-set/field-set-light.tsx" title="Used in Lightweight Filtering - light" ></code>
 
 ## API
 
@@ -109,7 +109,7 @@ Same as [Input](https://ant.design/components/input/).
 
 ProFormCaptcha is a component developed to support common CAPTCHA functionality in the middle and backend.
 
-<code src="../../demos/form/FieldSet/pro-form-captCha.tsx" title="captcha"></code>
+<code src="../../demos/form/field-set/pro-form-captcha.tsx" title="captcha"></code>
 
 ```tsx | pure
 <ProFormCaptcha
@@ -565,8 +565,8 @@ Same as [upload](https://ant.design/components/upload/). The Button style is pre
 | title      | Dragger's title                                                                                                                                                                                               | `ReactNode`  | Click to upload |
 | max        | Maximum upload quantity. The upload button will be hidden if the maximum quantity is exceeded                                                                                                                 | `number`     | -               |
 | imageProps | Preview the additional configuration of the [Image](https://ant-design.antgroup.com/components/image-cn) component, and you can customize the preview behavior, toolbar and other image component properties. | `ImageProps` | -               |
-| ```tsx     | pure                                                                                                                                                                                                          |
 
+```tsx | pure
 <ProFormUploadButton label="upload" name="upload" action="upload.do" />
 ```
 

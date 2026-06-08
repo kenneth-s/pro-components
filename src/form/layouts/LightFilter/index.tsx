@@ -7,7 +7,6 @@ import type { TooltipPlacement } from 'antd/lib/tooltip';
 import { clsx } from 'clsx';
 import React, {
   useContext,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -18,48 +17,16 @@ import { FieldLabel, FilterDropdown } from '../../../utils';
 import type { CommonFormProps, ProFormInstance } from '../../BaseForm';
 import { BaseForm } from '../../BaseForm';
 import type { LightFilterFooterRender } from '../../typing';
+import { lightFilterFieldComponents } from './lightFilterFieldComponents';
 import { useStyle } from './style';
 
-export type LightFilterProps<T, U = Record<string, any>> = {
+export type LightFilterLayoutProps<T, U = Record<string, any>> = {
   collapse?: boolean;
-  /**
-   * @name 收起的label dom
-   *
-   * @example collapseLabel={"收起"}
-   */
   collapseLabel?: React.ReactNode;
-  /**
-   * @name 组件样式变体
-   */
   variant?: 'outlined' | 'filled' | 'borderless';
-  /**
-   * @name 忽略rules，一般而言 LightFilter 应该不支持rules，默认是 false。
-   */
   ignoreRules?: boolean;
-
-  /**
-   * @name 自定义 footerRender
-   *
-   * @example 自定义清除
-   * footerRender={(onConfirm,onClear)=>{  return <a onClick={onClear}>清除</a> })}
-   */
   footerRender?: LightFilterFooterRender;
-
-  /**
-   * @name 支持配置弹出的位置
-   * @default bottomLeft
-   */
   placement?: TooltipPlacement;
-  /**
-   * @name 透传给内部 Popover 的属性（折叠态弹层）
-   *
-   * @description
-   * LightFilter 在折叠态会使用 Popover 将筛选项渲染到 body 下；
-   * 可通过该属性为弹层根节点添加自定义类名（如 classNames.root）以便做样式覆盖。
-   *
-   * @example
-   * popoverProps={{ classNames: { root: 'my-lightfilter-popover' } } }
-   */
   popoverProps?: Omit<
     PopoverProps,
     'children' | 'content' | 'trigger' | 'open' | 'onOpenChange' | 'placement'
@@ -67,11 +34,6 @@ export type LightFilterProps<T, U = Record<string, any>> = {
 } & Omit<FormProps<T>, 'onFinish'> &
   CommonFormProps<T, U>;
 
-/**
- * 单行的查询表单，一般用于配合 table 或者 list使用 有时也会用于 card 的额外区域
- *
- * @param props
- */
 const LightFilterContainer: React.FC<{
   items: React.ReactNode[];
   prefixCls: string;
@@ -151,7 +113,7 @@ const LightFilterContainer: React.FC<{
       collapseItems: collapseItemsArr,
       outsideItems: outsideItemsArr,
     };
-  }, [props.items]);
+  }, [props.items, collapse]);
 
   return wrapSSR(
     <div
@@ -189,10 +151,8 @@ const LightFilterContainer: React.FC<{
                   placement: newPlacement,
                   variant: 'borderless',
                 },
-                // proFieldProps 会直接作为 ProField 的 props 传递过去
                 proFieldProps: {
                   ...child.props.proFieldProps,
-                  light: true,
                   label: child.props.label,
                   variant,
                 },
@@ -214,7 +174,7 @@ const LightFilterContainer: React.FC<{
               }}
               placement={placement}
               popoverProps={popoverProps}
-                label={collapseLabelNode}
+              label={collapseLabelNode}
               footerRender={footerRender}
               footer={{
                 onConfirm: () => {
@@ -246,7 +206,7 @@ const LightFilterContainer: React.FC<{
                     return false;
                   },
                 };
-                if (moreValues.hasOwnProperty(name)) {
+                if (Object.prototype.hasOwnProperty.call(moreValues, name)) {
                   newFieldProps[child.props.valuePropName || 'value'] =
                     moreValues[name];
                 }
@@ -276,7 +236,9 @@ const LightFilterContainer: React.FC<{
   );
 };
 
-function LightFilter<T = Record<string, any>>(props: LightFilterProps<T>) {
+function LightFilterComponent<T = Record<string, any>>(
+  props: LightFilterLayoutProps<T>,
+) {
   const {
     size,
     collapse,
@@ -287,7 +249,6 @@ function LightFilter<T = Record<string, any>>(props: LightFilterProps<T>) {
     placement,
     formRef: userFormRef,
     variant,
-    ignoreRules,
     footerRender,
     popoverProps,
     ...reset
@@ -299,11 +260,15 @@ function LightFilter<T = Record<string, any>>(props: LightFilterProps<T>) {
   });
   const formRef = useRef<ProFormInstance>();
 
-  useImperativeHandle(userFormRef, () => formRef.current, [formRef.current]);
+  // deps 必须是 []：formRef.current 是 mutable value，变化不触发 React 更新，
+  // 放入 deps 无意义，且会导致每次渲染都重新执行。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useImperativeHandle(userFormRef, () => formRef.current, []);
 
   return (
     <BaseForm
       size={size}
+      formComponentType="LightFilter"
       initialValues={initialValues}
       form={userForm}
       contentRender={(items) => {
@@ -313,7 +278,6 @@ function LightFilter<T = Record<string, any>>(props: LightFilterProps<T>) {
             prefixCls={prefixCls}
             items={items?.flatMap((item: any) => {
               if (!item || !item?.type) return item;
-              /** 如果是 ProFormGroup，直接拼接dom */
               if (item?.type?.displayName === 'ProForm-Group')
                 return item.props.children;
               return item;
@@ -361,4 +325,12 @@ function LightFilter<T = Record<string, any>>(props: LightFilterProps<T>) {
   );
 }
 
+type LightFilterType = typeof LightFilterComponent &
+  typeof lightFilterFieldComponents;
+const LightFilter = LightFilterComponent as LightFilterType;
+Object.assign(LightFilter, lightFilterFieldComponents);
+(LightFilter as { displayName?: string }).displayName = 'LightFilter';
+
 export { LightFilter };
+export default LightFilter;
+export type { LightFilterLayoutProps as LightFilterProps };

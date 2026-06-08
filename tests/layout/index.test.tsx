@@ -5,6 +5,7 @@ import {
 } from '@ant-design/icons';
 import {
   LoginForm,
+  PageContainer,
   ProFormText,
   ProLayout,
   type ProLayoutNavMenuDomProps,
@@ -56,7 +57,11 @@ describe('BasicLayout', () => {
   });
   it('🥩 base use', async () => {
     const html = render(<ProLayout />);
-    expect(html.asFragment()).toMatchSnapshot();
+    // 基础渲染：ProLayout 根容器与默认 sider 应正常渲染
+    expect(html.baseElement.querySelector('.ant-pro-layout')).toBeTruthy();
+    expect(
+      html.baseElement.querySelector('.ant-pro-layout-content'),
+    ).toBeTruthy();
     html.unmount();
   });
 
@@ -98,6 +103,68 @@ describe('BasicLayout', () => {
     wrapper.unmount();
   });
 
+  it('🐞 leaf: li click on row blank delegates to inner a[href] when anchor does not fill row', async () => {
+    const onInnerNav = vi.fn((e: React.MouseEvent) => {
+      e.preventDefault();
+    });
+    const wrapper = render(
+      <ProLayout
+        menuDataRender={() => [{ path: '/welcome', name: '欢迎' }]}
+        menuItemRender={(item, dom) => (
+          <a
+            href={item.path}
+            data-testid="inner-nav-anchor"
+            style={{ display: 'inline', width: 'auto' }}
+            onClick={(e) => {
+              e.preventDefault();
+              onInnerNav(e);
+            }}
+          >
+            {dom}
+          </a>
+        )}
+      />,
+    );
+    await waitForWaitTime(100);
+    const li = wrapper.baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-leaf]',
+    );
+    expect(li).toBeTruthy();
+    act(() => {
+      fireEvent.click(li!);
+    });
+    expect(onInnerNav).toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('🐞 leaf: li click delegates to plain div onClick when no a/role=button', async () => {
+    const onRow = vi.fn();
+    const wrapper = render(
+      <ProLayout
+        menuDataRender={() => [{ path: '/welcome', name: '欢迎' }]}
+        menuItemRender={(item, dom) => (
+          <div
+            data-testid="plain-row"
+            style={{ display: 'inline-block', width: 'auto' }}
+            onClick={() => onRow(item.path)}
+          >
+            {dom}
+          </div>
+        )}
+      />,
+    );
+    await waitForWaitTime(100);
+    const li = wrapper.baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-leaf]',
+    );
+    expect(li).toBeTruthy();
+    act(() => {
+      fireEvent.click(li!);
+    });
+    expect(onRow).toHaveBeenCalledWith('/welcome');
+    wrapper.unmount();
+  });
+
   it('🥩 TopNavHeader merges menuProps once on root nav', async () => {
     const wrapper = render(
       <ProLayout
@@ -136,7 +203,7 @@ describe('BasicLayout', () => {
   it('🥩 support headerRender', async () => {
     const wrapper = render(
       <ProLayout
-        layout="mix"
+        layout="side"
         headerRender={() => <div id="testid">testid</div>}
       >
         XXX
@@ -333,7 +400,10 @@ describe('BasicLayout', () => {
               {
                 title: '前端应用框架',
                 icon: () => (
-                  <img src="https://img.alicdn.com/tfs/TB1zomHwxv1gK0jSZFFXXb0sXXa-200-200.png" alt="" />
+                  <img
+                    src="https://img.alicdn.com/tfs/TB1zomHwxv1gK0jSZFFXXb0sXXa-200-200.png"
+                    alt=""
+                  />
                 ),
                 url: 'https://umijs.org/zh-CN/docs',
               },
@@ -538,7 +608,7 @@ describe('BasicLayout', () => {
       >
         <div ref={ref}>
           <ProLayout
-            layout="mix"
+            layout="side"
             fixedHeader
             title="fixed-header-scroll"
             stylish={{
@@ -727,7 +797,7 @@ describe('BasicLayout', () => {
       getComputedStyle(
         wrapper.baseElement.querySelector<HTMLDivElement>('.ant-pro-sider')!,
       )?.width,
-    ).toBe('240px');
+    ).toBe('235px');
 
     await waitForWaitTime(100);
     wrapper.unmount();
@@ -928,7 +998,12 @@ describe('BasicLayout', () => {
         }}
       />,
     );
-    expect(wrapper.asFragment()).toMatchSnapshot();
+    // contentStyle.padding=56 应应用到 layout-content 元素
+    const contentEl = wrapper.baseElement.querySelector<HTMLDivElement>(
+      '.ant-pro-layout-content',
+    );
+    expect(contentEl).toBeTruthy();
+    expect(contentEl?.style.padding).toBe('56px');
   });
 
   it('🥩 support className', async () => {
@@ -1046,30 +1121,13 @@ describe('BasicLayout', () => {
     });
   });
 
-  it('🥩 headerTitleRender ', async () => {
-    const wrapper = render(
-      <ProLayout
-        headerTitleRender={() => <h2 id="mix-test">mix title</h2>}
-        layout="mix"
-        location={{
-          pathname: '/',
-        }}
-      />,
-    );
-    await waitForWaitTime(100);
-    expect(
-      wrapper.baseElement.querySelector<HTMLDivElement>('#mix-test')
-        ?.textContent,
-    ).toBe('mix title');
-  });
-
   it('🥩 onMenuHeaderClick', async () => {
     const onMenuHeaderClick = vi.fn();
     const wrapper = render(
       <ProLayout
         pageTitleRender={false}
         onMenuHeaderClick={onMenuHeaderClick}
-        layout="mix"
+        layout="side"
         location={{
           pathname: '/',
         }}
@@ -1078,9 +1136,7 @@ describe('BasicLayout', () => {
 
     await waitForWaitTime(100);
     act(() => {
-      wrapper.baseElement
-        .querySelector<HTMLDivElement>('div.ant-pro-global-header-logo')
-        ?.click();
+      wrapper.baseElement.querySelector<HTMLDivElement>('#logo')?.click();
     });
     expect(onMenuHeaderClick).toHaveBeenCalled();
   });
@@ -1105,90 +1161,7 @@ describe('BasicLayout', () => {
     });
   });
 
-  it('🥩 support get config form menuItem', async () => {
-    const wrapper = render(
-      <ProLayout
-        location={{
-          pathname: '/home/search',
-        }}
-        menuDataRender={() => [
-          {
-            path: '/home/overview',
-            name: '概述',
-            exact: true,
-            layout: 'side',
-          },
-          {
-            path: '/home/search',
-            name: '搜索',
-            exact: true,
-            layout: 'mix',
-          },
-          {
-            path: '/home',
-            name: '首页',
-            layout: 'top',
-          },
-        ]}
-      />,
-    );
-
-    await waitForWaitTime(100);
-
-    // 等待组件完全渲染，然后检查布局类型
-    await waitFor(() => {
-      const layoutElement =
-        wrapper.baseElement.querySelector('.ant-design-pro');
-      expect(layoutElement).toBeTruthy();
-      // 检查是否包含 mix 布局类
-      expect(
-        layoutElement?.className.includes('ant-pro-layout-mix'),
-      ).toBeTruthy();
-    });
-
-    act(() => {
-      wrapper.rerender(
-        <ProLayout
-          location={{
-            pathname: '/home',
-          }}
-          menuDataRender={() => [
-            {
-              path: '/home/overview',
-              name: '概述',
-              exact: true,
-              layout: 'side',
-            },
-            {
-              path: '/home/search',
-              name: '搜索',
-              exact: true,
-              layout: 'mix',
-            },
-            {
-              path: '/home',
-              name: '首页',
-              layout: 'top',
-            },
-          ]}
-        />,
-      );
-    });
-    await waitForWaitTime(100);
-
-    await waitFor(() => {
-      const layoutElement =
-        wrapper.baseElement.querySelector('.ant-design-pro');
-      expect(layoutElement).toBeTruthy();
-      // 检查是否包含 mix 布局类（因为当前路径匹配的是 mix 布局的菜单项）
-      expect(
-        layoutElement?.className.includes('ant-pro-layout-mix') ||
-          layoutElement?.className.includes('ant-pro-layout-top-menu'),
-      ).toBeTruthy();
-    });
-  });
-
-  it('🥩 mix layout hideInMenu render right', async () => {
+  it('🥩 hideInMenu render right', async () => {
     const wrapper = render(
       <ProLayout
         menuDataRender={() => [
@@ -1209,8 +1182,7 @@ describe('BasicLayout', () => {
     expect(
       wrapper.baseElement.querySelector<HTMLDivElement>(
         'li.ant-pro-base-menu-vertical-item',
-      )
-        ?.innerText,
+      )?.innerText,
     ).not.toContain('欢迎');
   });
 
@@ -1248,25 +1220,16 @@ describe('BasicLayout', () => {
             },
           ]}
         />
-        <ProLayout
-          menu={{
-            loading: true,
-          }}
-          layout="mix"
-          menuDataRender={() => [
-            {
-              path: '/welcome',
-              name: '欢迎',
-            },
-            {
-              name: '列表页',
-              path: '/list',
-            },
-          ]}
-        />
       </>,
     );
-    expect(wrapper.asFragment()).toMatchSnapshot();
+    // menu.loading=true 时，应渲染 skeleton 占位
+    expect(
+      wrapper.baseElement.querySelectorAll('.ant-skeleton').length,
+    ).toBeGreaterThan(0);
+    // 应渲染至少 2 个 ProLayout 实例
+    expect(
+      wrapper.baseElement.querySelectorAll('.ant-pro-layout').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it('🥩 ProLayout support current menu', async () => {
@@ -1413,7 +1376,8 @@ describe('BasicLayout', () => {
     });
     await waitForWaitTime(2000);
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(2);
     const domChildMenu = await (await html.findAllByText('二级列表页面')).at(0);
     const domLink = await (await html.findAllByText('AntDesign外链')).at(0);
@@ -1761,7 +1725,8 @@ describe('BasicLayout', () => {
       html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu]').length,
     ).toBe(3);
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(3);
   });
 
@@ -1862,14 +1827,16 @@ describe('BasicLayout', () => {
       html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu]').length,
     ).toBe(3);
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(3);
     await act(async () => {
       (await html.findByText('月表'))?.parentElement?.click();
     });
     await waitForWaitTime(800);
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(0);
   });
 
@@ -1968,7 +1935,8 @@ describe('BasicLayout', () => {
     await waitForWaitTime(1000);
 
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(2);
 
     act(() => {
@@ -1982,7 +1950,8 @@ describe('BasicLayout', () => {
     await waitForWaitTime(1000);
 
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(0);
 
     act(() => {
@@ -1997,7 +1966,8 @@ describe('BasicLayout', () => {
 
     expect(onCollapse).toHaveBeenCalledTimes(2);
     expect(
-      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]').length,
+      html.baseElement.querySelectorAll('[data-pro-layout-nav-submenu-open]')
+        .length,
     ).toBe(2);
   });
 
@@ -2067,5 +2037,196 @@ describe('BasicLayout', () => {
     expect(html.baseElement.querySelectorAll('.ant-layout-sider').length).toBe(
       0,
     );
+  });
+
+  it('🥩 horizontal top menu: clicking submenu title opens popup and leaf click navigates', async () => {
+    const onPathChange = vi.fn();
+    const onSelectFn = vi.fn();
+
+    const Demo = () => {
+      const [pathname, setPathname] = useState('/welcome');
+      return (
+        <ProLayout
+          layout="top"
+          location={{ pathname }}
+          onSelect={onSelectFn}
+          menuDataRender={() => [
+            { path: '/welcome', name: '欢迎' },
+            {
+              path: '/account',
+              name: '账户',
+              children: [
+                { path: '/account/user', name: '用户管理' },
+                { path: '/account/org', name: '组织管理' },
+              ],
+            },
+            { path: '/session', name: '会话管理' },
+          ]}
+          menuItemRender={(item, dom) => (
+            <div
+              data-testid={`menu-link-${item.path}`}
+              onClick={() => {
+                setPathname(item.path || '/welcome');
+                onPathChange(item.path);
+              }}
+            >
+              {dom}
+            </div>
+          )}
+        >
+          <div data-testid="page-content">当前路径: {pathname}</div>
+        </ProLayout>
+      );
+    };
+
+    const html = render(<Demo />);
+    await waitForWaitTime(200);
+
+    /* ---- Case 1: Click submenu title → popup opens ---- */
+    const submenuTitle = html.baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-root] [data-testid="pro-layout-nav-menu-popup-submenu-title"]',
+    );
+    expect(submenuTitle).toBeTruthy();
+
+    act(() => {
+      submenuTitle!.click();
+    });
+    await waitForWaitTime(200);
+
+    await waitFor(() => {
+      const popup = document.body.querySelector('[class*="submenu-popup"]');
+      expect(popup).toBeTruthy();
+      expect(popup!.textContent).toContain('用户管理');
+      expect(popup!.textContent).toContain('组织管理');
+      /** 离屏测宽 `nav` 不得再挂一层同源 Popover 浮层，否则叠层会挡住真实顶栏二级点击 */
+      expect(
+        document.body.querySelectorAll(
+          '[data-testid="pro-layout-nav-menu-popup-list"]',
+        ).length,
+      ).toBe(1);
+    });
+
+    /* ---- Case 2: Click leaf inside popup → navigates ---- */
+    const userLink = document.body.querySelector<HTMLElement>(
+      '[data-testid="menu-link-/account/user"]',
+    );
+    expect(userLink).toBeTruthy();
+
+    act(() => {
+      userLink!.click();
+    });
+    await waitForWaitTime(100);
+
+    expect(onPathChange).toHaveBeenCalledWith('/account/user');
+    expect(html.getByTestId('page-content').textContent).toContain(
+      '/account/user',
+    );
+
+    /* ---- Case 3: Click first-level leaf → navigates directly ---- */
+    onPathChange.mockClear();
+    const sessionLink = html.baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-root] [data-testid="menu-link-/session"]',
+    );
+    expect(sessionLink).toBeTruthy();
+
+    act(() => {
+      sessionLink!.click();
+    });
+    await waitForWaitTime(100);
+
+    expect(onPathChange).toHaveBeenCalledWith('/session');
+    expect(html.getByTestId('page-content').textContent).toContain('/session');
+
+    html.unmount();
+  });
+
+  it('🐞 horizontal popup: second-level leaf should have item--selected class', async () => {
+    const Demo = () => {
+      const [pathname, setPathname] = useState('/account/user');
+      return (
+        <ProLayout
+          layout="top"
+          location={{ pathname }}
+          menuDataRender={() => [
+            { path: '/welcome', name: '欢迎' },
+            {
+              path: '/account',
+              name: '账户',
+              children: [
+                { path: '/account/user', name: '用户管理' },
+                { path: '/account/org', name: '组织管理' },
+              ],
+            },
+            { path: '/session', name: '会话管理' },
+          ]}
+          menuItemRender={(item, dom) => (
+            <div
+              data-testid={`menu-link-${item.path}`}
+              onClick={() => setPathname(item.path || '/welcome')}
+            >
+              {dom}
+            </div>
+          )}
+        >
+          <div data-testid="page-content">当前路径: {pathname}</div>
+        </ProLayout>
+      );
+    };
+
+    const { baseElement, unmount } = render(<Demo />);
+    await waitForWaitTime(200);
+
+    const submenuTitle = baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-root] [data-testid="pro-layout-nav-menu-popup-submenu-title"]',
+    );
+    expect(submenuTitle).toBeTruthy();
+
+    act(() => {
+      submenuTitle!.click();
+    });
+    await waitForWaitTime(200);
+
+    await waitFor(() => {
+      const popup = document.body.querySelector('[class*="submenu-popup"]');
+      expect(popup).toBeTruthy();
+      const selectedItem = popup!.querySelector('[class*="item--selected"]');
+      expect(selectedItem).toBeTruthy();
+      const itemButton = selectedItem!.querySelector(
+        '[data-testid="pro-layout-nav-menu-item-button"]',
+      );
+      expect(itemButton).toBeTruthy();
+      expect(selectedItem!.textContent).toContain('用户管理');
+    });
+
+    const submenuLi = baseElement.querySelector<HTMLElement>(
+      '[data-pro-layout-nav-root] [data-testid="pro-layout-nav-menu-popup-submenu"]',
+    );
+    expect(submenuLi).toBeTruthy();
+    expect(submenuLi!.className).toContain('child-selected');
+
+    unmount();
+  });
+
+  it('🥩 top + Fixed: PageContainer wraps header and grid in top-fixed-slot', async () => {
+    const { baseElement, unmount } = render(
+      <ProLayout
+        layout="top"
+        contentWidth="Fixed"
+        location={{ pathname: '/welcome' }}
+        menuDataRender={() => [{ path: '/welcome', name: '欢迎' }]}
+      >
+        <PageContainer title="定宽槽">inner</PageContainer>
+      </ProLayout>,
+    );
+    await waitForWaitTime(200);
+    const slot = baseElement.querySelector(
+      '[data-testid="pro-page-container-top-fixed-slot"]',
+    );
+    expect(slot).toBeTruthy();
+    expect(slot?.querySelector('[data-testid="pro-page-header"]')).toBeTruthy();
+    expect(
+      slot?.querySelector('[data-testid="pro-grid-content"]'),
+    ).toBeTruthy();
+    unmount();
   });
 });

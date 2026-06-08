@@ -12,12 +12,12 @@ import defaultProps from './_defaultProps';
 import { demoOnMenuHeaderClick } from './_demoHandlers';
 
 const Demo = () => {
-  const [pathname, setPathname] = useState('/list/sub-page/sub-sub-page1');
+  const [pathname, setPathname] = useState('/product/list/on-sale');
 
   return (
     <ProLayout
       splitMenus
-      layout="mix"
+      layout="side"
       token={{
         bgLayout: 'rgba(160, 217, 17, 0.1)',
         colorTextAppListIcon: 'rgba(255, 255, 255, 1)',
@@ -155,7 +155,7 @@ const Demo = () => {
 };
 
 export default () => (
-  <div style={{ padding: 24 }}>
+  <div>
     <Demo />
   </div>
 );

@@ -1,10 +1,11 @@
 import type { AvatarProps, SiderProps } from 'antd';
-import { Avatar, ConfigProvider, Layout, Space } from 'antd';
+import { Avatar, ConfigProvider, Layout, Space, theme } from 'antd';
 import { clsx } from 'clsx';
 import type { CSSProperties, FC, ReactNode } from 'react';
 import React, { useContext, useMemo } from 'react';
 import type { GenerateStyle } from '../../../provider';
 import { ProProvider } from '../../../provider';
+import { defaultSettings } from '../../defaultSettings';
 import type { WithFalse } from '../../typing';
 import { AppsLogoComponents, defaultRenderLogo } from '../AppsLogoComponents';
 import type { AppItemProps, AppListProps } from '../AppsLogoComponents/types';
@@ -12,7 +13,6 @@ import { CollapsedIcon } from '../CollapsedIcon';
 import type { HeaderViewProps } from '../Header';
 import type { BaseMenuProps } from './BaseMenu';
 import { BaseMenu } from './BaseMenu';
-import type { NavMenuNode } from './navMenuTypes';
 import { ProLayoutNavMenu } from './ProLayoutNavMenu';
 import {
   getProLayoutSiderCssVarsStyle,
@@ -20,6 +20,7 @@ import {
 } from './style/menu';
 import type { SiderMenuToken } from './style/stylish';
 import { useStylish } from './style/stylish';
+import type { NavMenuNode } from './types';
 
 const _SafetyWarningProvider: FC<{ children: ReactNode }> = React.memo(
   (props) => {
@@ -45,7 +46,7 @@ export const renderLogoAndTitle = (
   props: SiderMenuProps,
   renderKey: HeaderRenderKey = 'menuHeaderRender',
 ): React.ReactNode => {
-  const { logo, title, layout } = props;
+  const { logo, title } = props;
   const renderFunction = props[renderKey as 'menuHeaderRender'];
   if (renderFunction === false) {
     return null;
@@ -64,7 +65,6 @@ export const renderLogoAndTitle = (
   if (props.isMobile) {
     return null;
   }
-  if (layout === 'mix' && renderKey === 'menuHeaderRender') return false;
   if (props.collapsed) {
     return <a key="title">{logoDom}</a>;
   }
@@ -112,6 +112,12 @@ export type SiderMenuProps = {
   actionsRender?: WithFalse<
     (props: HeaderViewProps) => React.ReactNode[] | React.ReactNode
   >;
+  /**
+   * @name 控制 actions/avatar 渲染位置
+   * - `'sider'`（默认）：渲染在侧边栏底部
+   * - `'header'`：渲染在顶部 header 中
+   */
+  actionsPlacement?: 'header' | 'sider';
   /**
    * @name  菜单 logo 和 title 区域的渲染
    *
@@ -224,52 +230,69 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
     avatarProps,
 
     actionsRender,
+    actionsPlacement = 'sider',
+    splitMenus,
     onOpenChange,
     stylish,
     logoStyle,
   } = props;
-  const { getPrefixCls } = useContext(ConfigProvider.ConfigContext);
+  const { getPrefixCls, theme: antdThemeConfig } = useContext(
+    ConfigProvider.ConfigContext,
+  );
   const resolvedPrefixCls = prefixCls ?? getPrefixCls('pro');
-  const { hashId: hashIdFromProvider } = useContext(ProProvider);
+  const { hashId: hashIdFromProvider, token: proToken } =
+    useContext(ProProvider);
+  const { token: antdToken } = theme.useToken();
   const hashId = hashIdFromProvider ?? '';
   const showSiderExtraDom = useMemo(() => {
     if (isMobile) return false;
-    if (layout === 'mix') return false;
     return true;
-  }, [isMobile, layout]);
+  }, [isMobile]);
 
   const baseClassName = `${resolvedPrefixCls}-sider`;
-  const linkMenuBaseClassName = `${resolvedPrefixCls}-base-menu-inline`;
-  useBaseMenuStyle(linkMenuBaseClassName, 'inline');
+  const linkMenuBaseClassName = `${resolvedPrefixCls}-base-menu-sider`;
+  useBaseMenuStyle(linkMenuBaseClassName, 'vertical');
 
   const siderCssVarsStyle = useMemo(
-    () => getProLayoutSiderCssVarsStyle(),
-    [],
+    () => getProLayoutSiderCssVarsStyle(proToken?.layout, antdToken),
+    [proToken?.layout, antdToken],
   );
 
-  // 收起的宽度，从 menu 配置中读取，默认为 64
-  const collapsedWidth = props.menu?.collapsedWidth ?? 64;
+  /** antd `Layout.Sider` 的 `theme` 与外层 `ConfigProvider` algorithm 对齐（含 `darkAlgorithm` 时为 dark） */
+  const antdSiderTheme = useMemo((): NonNullable<SiderProps['theme']> => {
+    const alg = antdThemeConfig?.algorithm;
+    if (alg == null) return 'light';
+    const list = Array.isArray(alg) ? alg : [alg];
+    return list.includes(theme.darkAlgorithm) ? 'dark' : 'light';
+  }, [antdThemeConfig?.algorithm]);
 
-  const stylishClassName = useStylish(
-    `${baseClassName}.${baseClassName}-stylish`,
-    {
-      stylish,
-      proLayoutCollapsedWidth: collapsedWidth,
-    },
-  );
+  const collapsedWidth =
+    props.menu?.collapsedWidth ?? defaultSettings.menu!.collapsedWidth!;
+
+  useStylish(`${baseClassName}.${baseClassName}-stylish`, {
+    stylish,
+    proLayoutCollapsedWidth: collapsedWidth,
+  });
 
   const siderClassName = clsx(`${baseClassName}`, hashId, {
     [`${baseClassName}-fixed`]: fixSiderbar,
-    [`${baseClassName}-fixed-mix`]:
-      layout === 'mix' && !isMobile && fixSiderbar,
     [`${baseClassName}-collapsed`]: props.collapsed,
     [`${baseClassName}-layout-${layout}`]: layout && !isMobile,
     [`${baseClassName}-light`]: true,
-    [`${baseClassName}-mix`]: layout === 'mix' && !isMobile,
     [`${baseClassName}-stylish`]: !!stylish,
   });
 
-  const headerDom = renderLogoAndTitle(props);
+  const hasHeaderTitleRender =
+    'headerTitleRender' in props &&
+    (props as { headerTitleRender?: unknown }).headerTitleRender !== undefined;
+  const headerRenderKey: HeaderRenderKey =
+    props.menuHeaderRender !== undefined
+      ? 'menuHeaderRender'
+      : hasHeaderTitleRender
+        ? 'headerTitleRender'
+        : 'menuHeaderRender';
+
+  const headerDom = renderLogoAndTitle(props, headerRenderKey);
 
   const extraDom = menuExtraRender && menuExtraRender(props);
 
@@ -283,11 +306,16 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
           onOpenChange={onOpenChange}
           style={{
             width: '100%',
+            minWidth: collapsed
+              ? undefined
+              : (siderWidth ?? 240) -
+                (proToken?.layout?.sider?.paddingInlineLayoutMenu ?? 8) * 2,
           }}
           className={clsx(`${baseClassName}-menu`, hashId)}
+          data-testid="pro-layout-sider-menu"
         />
       ),
-    [baseClassName, hashId, menuContentRender, onOpenChange, props],
+    [baseClassName, collapsed, hashId, menuContentRender, onOpenChange, props, siderWidth],
   );
 
   const linksNavNodes: NavMenuNode[] = (links || []).map((node, index) => ({
@@ -295,7 +323,10 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
     key: `link-${index}`,
     className: `${linkMenuBaseClassName}-link-item`,
     label: (
-      <span className={clsx(`${baseClassName}-link`, hashId)}>
+      <span
+        className={clsx(`${baseClassName}-link`, hashId)}
+        data-testid="pro-layout-sider-link"
+      >
         {node}
       </span>
     ),
@@ -309,7 +340,10 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
     if (!avatarProps) return null;
     const { title, render, ...rest } = avatarProps;
     const dom = (
-      <div className={`${baseClassName}-actions-avatar`}>
+      <div
+        className={`${baseClassName}-actions-avatar`}
+        data-testid="pro-layout-sider-actions-avatar"
+      >
         {rest?.src || rest?.srcSet || rest.icon || rest.children ? (
           <Avatar size={28} {...rest} />
         ) : null}
@@ -334,6 +368,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
           collapsed && `${baseClassName}-actions-list-collapsed`,
           hashId,
         ])}
+        data-testid="pro-layout-sider-actions-list"
       >
         {[actionsRender?.(props as HeaderViewProps)]
           .flat(1)
@@ -342,6 +377,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
               <div
                 key={index}
                 className={clsx(`${baseClassName}-actions-list-item`, hashId)}
+                data-testid="pro-layout-sider-actions-list-item"
               >
                 {item}
               </div>
@@ -369,6 +405,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
         isMobile={isMobile}
         collapsed={originCollapsed}
         className={`${baseClassName}-collapsed-button`}
+        data-testid="pro-layout-sider-collapsed-button"
         onClick={() => {
           onCollapse?.(!originCollapsed);
         }}
@@ -387,6 +424,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
 
   /** 操作区域的dom */
   const actionAreaDom = useMemo(() => {
+    if (actionsPlacement === 'header') return null;
     if (!avatarDom && !actionsDom) return null;
 
     return (
@@ -396,12 +434,22 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
           hashId,
           collapsed && `${baseClassName}-actions-collapsed`,
         )}
+        data-testid="pro-layout-sider-actions"
       >
         {avatarDom}
         {actionsDom}
       </div>
     );
-  }, [actionsDom, avatarDom, baseClassName, collapsed, hashId]);
+  }, [
+    actionsDom,
+    actionsPlacement,
+    avatarDom,
+    baseClassName,
+    collapsed,
+    hashId,
+    isMobile,
+    splitMenus,
+  ]);
 
   /* Using the useMemo hook to create a CSS class that will hide the menu when the menu is collapsed. */
   const hideMenuWhenCollapsedClassName = useMemo(() => {
@@ -418,6 +466,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
     <>
       {headerDom && (
         <div
+          data-testid="pro-layout-sider-logo"
           className={clsx([
             clsx(`${baseClassName}-logo`, hashId, {
               [`${baseClassName}-logo-collapsed`]: collapsed,
@@ -438,22 +487,23 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
             !headerDom && `${baseClassName}-extra-no-logo`,
             hashId,
           ])}
+          data-testid="pro-layout-sider-extra"
         >
           {extraDom}
         </div>
       )}
       <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-        }}
+        className={clsx(`${baseClassName}-menu-scroll`, hashId)}
+        data-testid="pro-layout-sider-menu-content"
       >
         {menuRenderDom}
       </div>
       <SiderContext.Provider value={{}}>
         {links ? (
-          <div className={clsx(`${baseClassName}-links`, hashId)}>
+          <div
+            className={clsx(`${baseClassName}-links`, hashId)}
+            data-testid="pro-layout-sider-links"
+          >
             <ProLayoutNavMenu
               baseClassName={linkMenuBaseClassName}
               hashId={hashId}
@@ -463,6 +513,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
               openKeys={[]}
               nodes={linksNavNodes}
               className={clsx(`${baseClassName}-link-menu`, hashId)}
+              data-testid="pro-layout-sider-link-menu"
             />
           </div>
         ) : null}
@@ -474,6 +525,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
               hashId,
               { [`${baseClassName}-footer-collapsed`]: collapsed },
             ])}
+            data-testid="pro-layout-sider-footer"
           >
             {menuFooterDom}
           </div>
@@ -482,7 +534,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
     </>
   );
 
-  return stylishClassName.wrapSSR(
+  return (
     <>
       {fixSiderbar && !isMobile && !hideMenuWhenCollapsedClassName && (
         <div
@@ -511,13 +563,14 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
         collapsedWidth={collapsedWidth}
         data-testid="pro-layout-sider"
         style={{ ...siderCssVarsStyle, ...style }}
-        theme="light"
+        theme={antdSiderTheme}
         width={siderWidth}
         className={clsx(siderClassName, hashId, hideMenuWhenCollapsedClassName)}
       >
         {hideMenuWhenCollapsedClassName ? (
           <div
             className={clsx(`${baseClassName}-hide-when-collapsed`, hashId)}
+            data-testid="pro-layout-sider-hide-when-collapsed"
             style={{
               height: '100%',
               width: '100%',
@@ -531,7 +584,7 @@ const SiderMenu: React.FC<SiderMenuProps & PrivateSiderMenuProps> = (props) => {
         )}
         {collapsedDom}
       </Sider>
-    </>,
+    </>
   );
 };
 

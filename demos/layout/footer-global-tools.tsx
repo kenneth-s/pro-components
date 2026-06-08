@@ -13,11 +13,11 @@ import defaultProps from './_defaultProps';
 
 const Demo = () => {
   const settings: ProSettings | undefined = {
-    layout: 'mix',
+    layout: 'side',
     splitMenus: true,
   };
 
-  const [pathname, setPathname] = useState('/list/sub-page/sub-sub-page1');
+  const [pathname, setPathname] = useState('/product/list/on-sale');
 
   return (
     <>
@@ -211,7 +211,7 @@ const Demo = () => {
 };
 
 export default () => (
-  <div style={{ padding: 24 }}>
+  <div>
     <Demo />
   </div>
 );

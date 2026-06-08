@@ -1,13 +1,7 @@
 import { ReloadOutlined } from '@ant-design/icons';
 import type { TableColumnType } from 'antd';
 import { Tooltip } from 'antd';
-import React, {
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-} from 'react';
+import React, { memo, useCallback, useContext, useEffect } from 'react';
 import type { IntlType } from '../../../provider';
 import { useIntl } from '../../../provider';
 import type { LabelTooltipType } from '../../../utils';
@@ -69,7 +63,7 @@ export type ToolBarProps<T = unknown> = {
   selectedRows?: T[];
   className?: string;
   onSearch?: (keyWords: string) => void;
-  columns: TableColumnType<T>[];
+  columns: (TableColumnType<T> & { index?: number })[];
 };
 
 function getButtonText(
@@ -108,7 +102,7 @@ function renderDefaultOption<T>(
     intl: IntlType;
   },
   actions: React.MutableRefObject<ActionType | undefined>,
-  columns: TableColumnType<T>[],
+  columns: (TableColumnType<T> & { index?: number })[],
 ) {
   return Object.keys(options)
     .filter((item) => item)
@@ -177,99 +171,71 @@ function ToolBar<T>({
   const counter = useContext(TableContext);
 
   const intl = useIntl();
-  const optionDom = useMemo(() => {
-    const defaultOptions = {
-      reload: () => action?.current?.reload(),
-      density: true,
-      setting: true,
-      search: false,
-      fullScreen: () => action?.current?.fullScreen?.(),
-    };
-    if (propsOptions === false) {
-      return [];
-    }
+  const defaultOptions = {
+    reload: () => action?.current?.reload(),
+    density: true,
+    setting: true,
+    search: false,
+    fullScreen: () => action?.current?.fullScreen?.(),
+  };
 
-    const options = {
-      ...defaultOptions,
-      fullScreen: false,
-      ...propsOptions,
-    };
-
+  let optionDom: React.ReactNode[];
+  if (propsOptions === false) {
+    optionDom = [];
+  } else {
+    const options = { ...defaultOptions, fullScreen: false, ...propsOptions };
     const settings = renderDefaultOption<T>(
       options,
-      {
-        ...defaultOptions,
-        intl,
-      },
+      { ...defaultOptions, intl },
       action,
       columns,
     );
-    if (optionsRender) {
-      return optionsRender(
-        {
-          headerTitle,
-          tooltip,
-          toolBarRender,
-          action,
-          options: propsOptions,
-          selectedRowKeys,
-          selectedRows,
-          toolbar,
-          onSearch,
-          columns,
-          optionsRender,
-          ...rest,
-        },
-        settings,
-      );
-    }
-    return settings;
-  }, [
-    action,
-    columns,
-    headerTitle,
-    intl,
-    onSearch,
-    optionsRender,
-    propsOptions,
-    rest,
-    selectedRowKeys,
-    selectedRows,
-    toolBarRender,
-    toolbar,
-    tooltip,
-  ]);
+    optionDom = optionsRender
+      ? optionsRender(
+          {
+            headerTitle,
+            tooltip,
+            toolBarRender,
+            action,
+            options: propsOptions,
+            selectedRowKeys,
+            selectedRows,
+            toolbar,
+            onSearch,
+            columns,
+            optionsRender,
+            ...rest,
+          },
+          settings,
+        )
+      : settings;
+  }
   // 操作列表
   const actions = toolBarRender
     ? toolBarRender(action?.current, { selectedRowKeys, selectedRows })
     : [];
 
-  const searchConfig: any = useMemo(() => {
-    if (!propsOptions) {
-      return false;
-    }
-    if (!propsOptions.search) return false;
-
+  let searchConfig: any = false;
+  if (propsOptions && propsOptions.search) {
     /** 受控的value 和 onChange */
     const defaultSearchConfig = {
       value: counter.keyWords,
       onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
         counter.setKeyWords(e.target.value),
     };
-
-    if (propsOptions.search === true) return defaultSearchConfig;
-
-    return {
-      ...defaultSearchConfig,
-      ...propsOptions.search,
-    };
-  }, [counter, propsOptions]);
+    searchConfig =
+      propsOptions.search === true
+        ? defaultSearchConfig
+        : { ...defaultSearchConfig, ...propsOptions.search };
+  }
 
   useEffect(() => {
     if (counter.keyWords === undefined) {
       onSearch?.('');
     }
-  }, [counter.keyWords, onSearch]);
+    // onSearch 用 useRefFunction 稳定后，这里只需跟踪 keyWords 变化
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counter.keyWords]);
 
   return (
     <ListToolBar

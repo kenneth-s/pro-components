@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const arEG: ProLocale = {
   moneySymbol: '$',
+  deleteThisLine: 'احذف هذا السطر',
+  copyThisLine: 'انسخ هذا السطر',
   form: {
     lightFilter: {
       more: 'المزيد',
@@ -57,8 +61,10 @@ export default {
     submitText: 'تسجيل الدخول',
   },
   editableTable: {
+    onlyOneLineEditor: 'يمكن تحرير سطر واحد فقط في كل مرة',
+    onlyAddOneLine: 'يمكن إضافة سطر واحد فقط في كل مرة',
     action: {
-      save: 'أنقذ',
+      save: 'حفظ',
       cancel: 'إلغاء الأمر',
       delete: 'حذف',
       add: 'إضافة صف من البيانات',
@@ -69,3 +75,5 @@ export default {
     close: 'غلق',
   },
 };
+
+export default arEG;

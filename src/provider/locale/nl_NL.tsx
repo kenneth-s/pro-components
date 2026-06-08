@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const nlNL: ProLocale = {
   moneySymbol: '€',
   deleteThisLine: 'Verwijder deze regel',
   copyThisLine: 'Kopieer deze regel',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: 'Slechts één regel tegelijk bewerken',
+    onlyAddOneLine: 'Slechts één regel tegelijk toevoegen',
     action: {
       save: 'Opslaan',
       cancel: 'Annuleren',
@@ -72,3 +75,5 @@ export default {
     close: 'Sluiten',
   },
 };
+
+export default nlNL;

@@ -1,5 +1,5 @@
-﻿import { get } from '@rc-component/util';
-import { cloneDeep } from 'lodash-es';
+import { get } from '@rc-component/util';
+import { cloneDeep, set } from 'lodash-es';
 import React from 'react';
 import { isNil } from '../isNil';
 import type { SearchTransformKeyFn } from '../typing';
@@ -31,9 +31,14 @@ export function isPlainObj(itemValue: any): boolean {
   if (itemValue.constructor === RegExp) return false;
   if (itemValue instanceof Map) return false;
   if (itemValue instanceof Set) return false;
-  if (itemValue instanceof HTMLElement) return false;
-  if (itemValue instanceof Blob) return false;
-  if (itemValue instanceof File) return false;
+  // SSR 环境下 HTMLElement / Blob / File 这些 BOM 全局不存在，
+  // 直接 instanceof 会抛 ReferenceError。本函数已 export，外部可能在 node 端 import 使用，
+  // 必须用 typeof 守门确保 SSR 安全。
+  if (typeof HTMLElement !== 'undefined' && itemValue instanceof HTMLElement) {
+    return false;
+  }
+  if (typeof Blob !== 'undefined' && itemValue instanceof Blob) return false;
+  if (typeof File !== 'undefined' && itemValue instanceof File) return false;
   if (Array.isArray(itemValue)) return false;
 
   return true;
@@ -120,7 +125,11 @@ function processDotPathTransforms(
   result: any,
   dotPathTransforms: Record<string, SearchTransformKeyFn>,
 ): void {
-  for (const dotPath in dotPathTransforms) {
+  // 用 Object.keys 替代 for...in：
+  //  - for...in 会遍历到原型链上的 enumerable 属性（虽然这里上游已经过滤过，但守门更稳）
+  //  - Object.keys 在 ES2015+ 明确按「先整数升序、再字符串插入序」遍历，多个 transform
+  //    路径相互覆盖时（如 'a.b' 和 'a.c' 都返回对象 merge 到 a）顺序更可预期
+  for (const dotPath of Object.keys(dotPathTransforms)) {
     const transform = dotPathTransforms[dotPath];
     if (typeof transform !== 'function') continue;
 
@@ -139,36 +148,50 @@ function processDotPathTransforms(
       transformed !== null &&
       !Array.isArray(transformed)
     ) {
-      // 如果返回对象，删除原键并将对象的键值对合并到父级
+      // 如果返回对象，需要按父节点形状分别处理：
+      // - 父节点是数组（如 `'list.0' -> v => ({X: 'A'})`）：旧实现走 `delete list[0]`
+      //   + `Object.assign(list, {X:'A'})`，会把 list 变成 `[<empty>, ..., X:'A']`，
+      //   即在数组上加 string key、留下空 slot，破坏数组形状。改为直接把返回对象整体
+      //   赋值到该索引位置（`list[0] = {X:'A'}`）。
+      // - 父节点是对象（如 `'users.0.name' -> v => ({displayName:v})`，此时 parent 是
+      //   `users[0]` 这个对象元素）：保持现有协议 —— 删原 key + 合并新对象到该父对象。
+      //   这是测试 `transforms array values` 锁定的行为。
       const parentPath = pathArray.slice(0, -1);
       const parentObj =
         parentPath.length > 0 ? get(result, parentPath) : result;
+      const lastKey = pathArray[pathArray.length - 1];
 
-      if (parentObj && typeof parentObj === 'object') {
-        const keyToDelete = pathArray[pathArray.length - 1];
-        delete parentObj[keyToDelete];
+      if (Array.isArray(parentObj)) {
+        // 父节点是数组：直接整体替换该索引位置的值
+        parentObj[lastKey as number] = transformed;
+      } else if (parentObj && typeof parentObj === 'object') {
+        // 父节点是对象：保持原协议（删旧 key + 合并新对象）
+        delete parentObj[lastKey];
         Object.assign(parentObj, transformed);
       }
     } else {
-      // 如果返回原始值，直接替换
-      // 手动设置嵌套路径的值，确保数组索引正确处理
-      let current = result;
-      for (let i = 0; i < pathArray.length - 1; i++) {
-        const key = pathArray[i];
-        if (current[key] === undefined) {
-          // 如果下一个键是数字，创建数组，否则创建对象
-          const nextKey = pathArray[i + 1];
-          current[key] = typeof nextKey === 'number' ? [] : {};
-        }
-        current = current[key];
-      }
-      current[pathArray[pathArray.length - 1]] = transformed;
+      // 如果返回原始值，直接替换。
+      // 用 lodash-es/set 替代手写的 setIn 循环：
+      //  - 旧实现 `if (current[key] === undefined)` 漏判 null / false 等假值，
+      //    遇到 `{ user: null }` + 路径 `'user.profile.name'` 会在 `null['profile']` 抛 TypeError；
+      //  - 旧实现 `typeof nextKey === 'number' ? [] : {}` 决定容器类型也是凭路径推断，
+      //    存在与点号路径段类型不一致时建错容器的问题。
+      // lodash set 内部会按目标路径段做安全合并（已存在则用已有值；为 nil 时按下一段是否数字
+      // 自动建 array/object），与历史行为兼容更稳妥。
+      set(result, pathArray, transformed);
     }
   }
 }
 
 /**
  * 在嵌套转换配置中查找转换函数
+ *
+ * 等价于沿 `[...parentsKey, entityKey]` 路径在 `currentTransforms` 上下钻：
+ *  - 中间任意一段不是对象（缺失 / null / 原始值 / 函数等） → 视为找不到，返回 undefined；
+ *  - 最终落点必须是 function 才返回，否则返回 undefined。
+ *
+ * 旧实现是 28 行手写循环，这里改用 `lodash-es/get` 一行实现：`get` 在路径走不下去时
+ * 返回 undefined，与原循环里 `nestedTransforms = null; break;` 行为等价。
  *
  * @param currentTransforms - 当前转换配置
  * @param parentsKey - 父级路径
@@ -180,79 +203,73 @@ function findNestedTransformFunction(
   parentsKey: React.Key[],
   entityKey: string,
 ): SearchTransformKeyFn | undefined {
-  let nestedTransforms: any = currentTransforms;
-
-  for (const parentKey of parentsKey) {
-    const parentKeyStr = String(parentKey);
-    if (
-      nestedTransforms &&
-      typeof nestedTransforms[parentKeyStr] === 'object'
-    ) {
-      nestedTransforms = nestedTransforms[parentKeyStr];
-    } else {
-      nestedTransforms = null;
-      break;
-    }
-  }
-
-  if (nestedTransforms && typeof nestedTransforms[entityKey] === 'function') {
-    return nestedTransforms[entityKey];
-  }
-
-  return undefined;
+  // React.Key = string | number | bigint，但 lodash get 的 path 段不接受 bigint，
+  // 所以这里把整条路径段都用 String() 归一化为字符串再传入。lodash get 内部会按
+  // 数字字符串自动处理数组索引，行为与原循环里 `String(parentKey)` 等价。
+  const path = [...parentsKey.map(String), entityKey];
+  const candidate = get(currentTransforms, path);
+  return typeof candidate === 'function' ? candidate : undefined;
 }
 
 /**
- * 检查路径是否包含数组索引
+ * 判断 `parentsKey` 这条路径上是否曾经穿过一个数组节点。
  *
- * @param parentsKey - 父级路径数组
- * @returns 如果包含数组索引返回 true
+ * 旧实现用 `!isNaN(Number(key))` 来判断「这一段看起来像数字」就当成数组索引，会把
+ *  - 年份字段名 `'2024'`
+ *  - ID 字段名 `'0'` / `'007'`
+ *
+ * 这类「字符串字段名恰好可被解析为数字」的合法用户字段误判为数组索引，导致 transform
+ * 返回的对象被错误地合并到当前层而不是 root。这里改为按 `rootValues` 的真实形状逐段下钻，
+ * 只要中途任意一段父节点本身是数组就返回 true。
  */
-function isInArrayPath(parentsKey: React.Key[]): boolean {
-  return parentsKey.some((key) => !isNaN(Number(key)));
+function isInArrayPath(rootValues: any, parentsKey: React.Key[]): boolean {
+  let cursor: any = rootValues;
+  for (const segment of parentsKey) {
+    if (Array.isArray(cursor)) return true;
+    if (cursor == null || typeof cursor !== 'object') return false;
+    cursor = cursor[segment as keyof typeof cursor];
+  }
+  return Array.isArray(cursor);
 }
 
 /**
  * 递归处理嵌套对象转换（传统格式）
  *
- * @param tempValues - 要处理的值
- * @param parentsKey - 父级路径
- * @param currentTransforms - 当前转换配置
- * @param rootMergeObjects - 存储需要在根级别合并的对象
- * @param visited - 存储已经访问过的对象，防止循环引用
+ * @param currentValues - 当前递归层要处理的 values 子树
+ * @param parentsKey - 当前递归层在 root values 上的父级路径
+ * @param currentTransforms - 当前递归层对应的 transforms 子树
+ * @param rootLevelMerges - 收集所有「应在 root 上合并」的 transform 返回对象
  * @param rootAllValues - 根级表单对象（与 `SearchTransformKeyFn` 第三参一致），整次转换过程中保持不变引用
  * @returns 处理后的结果
+ *
+ * 设计说明：旧实现带有 `visited: Set<any>` 用于防止循环引用，但 `transformKeySubmitValue`
+ * 入口已经做过 `cloneDeep(values)`，且 antd Form 的 values 由用户输入序列化产生，必然
+ * 是 DAG / 树结构（无循环引用），该 Set 是 dead code，已删除以减少递归参数数量。
  */
 function processNestedObjectTransforms(
-  tempValues: any,
+  currentValues: any,
   parentsKey: React.Key[] | undefined,
   currentTransforms: any,
-  rootMergeObjects: any[],
-  visited: Set<any>,
+  rootLevelMerges: any[],
   rootAllValues: any,
 ): any {
-  if (tempValues != null && typeof tempValues === 'object') {
-    if (visited.has(tempValues)) {
-      return tempValues;
-    }
-    visited.add(tempValues);
-  }
+  const isArrayValues = Array.isArray(currentValues);
+  const currentResult: any = isArrayValues ? [] : {};
 
-  const isArrayValues = Array.isArray(tempValues);
-  let tempResult: any = isArrayValues ? [] : {};
-
-  if (tempValues == null || tempValues === undefined) {
-    return tempResult;
+  if (currentValues == null || currentValues === undefined) {
+    return currentResult;
   }
 
   // 确定要处理的键
   const keysToProcess = isArrayValues
-    ? tempValues.map((_, index) => index.toString())
-    : Object.keys(tempValues);
+    ? currentValues.map((_: unknown, index: number) => index.toString())
+    : Object.keys(currentValues);
 
   for (const entityKey of keysToProcess) {
-    const key = parentsKey ? [...parentsKey, entityKey] : [entityKey];
-    const itemValue = tempValues[entityKey];
+    const nextParentsKey = parentsKey
+      ? [...parentsKey, entityKey]
+      : [entityKey];
+    const itemValue = currentValues[entityKey];
 
     // 查找转换函数
     let transformFunction = currentTransforms[entityKey];
@@ -267,31 +284,30 @@ function processNestedObjectTransforms(
     }
 
     if (transformFunction && typeof transformFunction === 'function') {
-      const namePath = key.map((k) => String(k));
-      const transformed = transformFunction(
-        itemValue,
-        namePath,
-        rootAllValues,
-      );
+      const namePath = nextParentsKey.map((k) => String(k));
+      const transformed = transformFunction(itemValue, namePath, rootAllValues);
 
       if (
         typeof transformed === 'object' &&
         transformed !== null &&
         !Array.isArray(transformed)
       ) {
-        // 检查当前项是否在数组中
-        const isInArray = parentsKey ? isInArrayPath(parentsKey) : false;
+        // 检查当前项是否在数组中（按 root values 的真实数据形状判断，
+        // 而不是按路径段「看起来像数字」判断 —— 否则字段名 '2024' 这类会被误判）
+        const isInArray = parentsKey
+          ? isInArrayPath(rootAllValues, parentsKey)
+          : false;
 
         if (isInArray) {
           // 如果是数组元素内的转换，直接合并到当前结果
-          Object.assign(tempResult, transformed);
+          Object.assign(currentResult, transformed);
         } else {
-          // 如果不是数组元素，将其存储到 rootMergeObjects 以便在根级别合并
-          rootMergeObjects.push(transformed);
+          // 如果不是数组元素，将其存储到 rootLevelMerges 以便在根级别合并
+          rootLevelMerges.push(transformed);
         }
       } else {
         // 如果返回原始值，用新键替换
-        tempResult[entityKey] = transformed;
+        currentResult[entityKey] = transformed;
       }
     } else if (isPlainObj(itemValue) && !isNil(itemValue)) {
       // 递归处理嵌套对象（但跳过 null 值）
@@ -300,37 +316,38 @@ function processNestedObjectTransforms(
         // 如果当前键有嵌套转换配置，传递嵌套配置
         const nested = processNestedObjectTransforms(
           itemValue,
-          key,
+          nextParentsKey,
           nestedTransforms,
-          rootMergeObjects,
-          visited,
+          rootLevelMerges,
           rootAllValues,
         );
-        // 检查是否有任何子属性被转换为对象（会被添加到 rootMergeObjects）
+        // 检查是否有任何子属性被转换为对象（会被添加到 rootLevelMerges）
         // 如果 nested 为空或只包含被转换的属性，我们不保留这个对象
         const hasRemainingContent = Object.keys(nested).length > 0;
         if (hasRemainingContent) {
-          tempResult[entityKey] = nested;
+          currentResult[entityKey] = nested;
         }
       } else {
         // 否则继续使用当前转换配置递归
         const nested = processNestedObjectTransforms(
           itemValue,
-          key,
+          nextParentsKey,
           currentTransforms,
-          rootMergeObjects,
-          visited,
+          rootLevelMerges,
           rootAllValues,
         );
-        tempResult[entityKey] = nested;
+        currentResult[entityKey] = nested;
       }
     } else if (!isNil(itemValue)) {
-      // 保留非 null/undefined 原始值
-      tempResult[entityKey] = itemValue;
+      // 历史协议（"ignore null"，详见 tests/utils/index.test.tsx#943）：
+      // 没有 transform 配置且值为 null / undefined 的字段会被静默忽略，最终结果里
+      // 该字段为 undefined。如果想改成「保留原 null/undefined」需要先评估外部影响
+      // 并同步更新该测试，本轮不动。
+      currentResult[entityKey] = itemValue;
     }
   }
 
-  return tempResult;
+  return currentResult;
 }
 
 /**
@@ -380,8 +397,8 @@ export const transformKeySubmitValue = <T extends object = any>(
   // 处理点号路径格式的转换（如 'users.0.name'）
   processDotPathTransforms(result, dotPathTransforms);
 
-  // 存储需要在根级别合并的对象
-  const rootMergeObjects: any[] = [];
+  // 收集所有「应在 root 上合并」的 transform 返回对象
+  const rootLevelMerges: any[] = [];
 
   // 处理传统的嵌套对象格式转换（向后兼容）
   if (Object.keys(objectTransforms).length > 0) {
@@ -389,14 +406,13 @@ export const transformKeySubmitValue = <T extends object = any>(
       result,
       undefined,
       objectTransforms,
-      rootMergeObjects,
-      new Set(),
+      rootLevelMerges,
       result,
     );
   }
 
-  // 将所有根级别合并对象合并到最终结果
-  for (const obj of rootMergeObjects) {
+  // 将所有根级合并对象合并到最终结果
+  for (const obj of rootLevelMerges) {
     Object.assign(result, obj);
   }
 

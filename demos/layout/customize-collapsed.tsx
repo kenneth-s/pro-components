@@ -56,7 +56,7 @@ const Demo = () => {
     return (
       <ProLayout
         {...props}
-        layout="mix"
+        layout="side"
         onCollapse={setCollapsed}
         postMenuData={(menuData) => {
           return [
@@ -76,7 +76,7 @@ const Demo = () => {
   return (
     <ProLayout
       {...props}
-      layout="mix"
+      layout="side"
       onCollapse={setCollapsed}
       headerContentRender={() => {
         return (
@@ -98,7 +98,7 @@ const Demo = () => {
 };
 
 export default () => (
-  <div style={{ padding: 24 }}>
+  <div>
     <Demo />
   </div>
 );

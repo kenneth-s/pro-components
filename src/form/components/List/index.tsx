@@ -242,6 +242,12 @@ function ProFormList<T>(props: ProFormListProps<T>) {
     );
   }, [props.name, setFieldValueType, transform]);
 
+  /** 当 isValidateList=true 时触发校验，提取消除 onAfterAdd/onAfterRemove 里的重复判断 */
+  const validateIfNeeded = () => {
+    if (!isValidateList) return;
+    proFormContext.formRef!.current!.validateFields([name]);
+  };
+
   const { wrapSSR, hashId } = useStyle(baseClassName);
 
   if (!proFormContext.formRef) return null;
@@ -306,19 +312,11 @@ function ProFormList<T>(props: ProFormListProps<T>) {
                     max={max}
                     count={fields.length}
                     onAfterAdd={(defaultValue, insertIndex, count) => {
-                      if (isValidateList) {
-                        proFormContext.formRef!.current!.validateFields([name]);
-                      }
+                      validateIfNeeded();
                       onAfterAdd?.(defaultValue, insertIndex, count);
                     }}
                     onAfterRemove={(index, count) => {
-                      if (isValidateList) {
-                        if (count === 0) {
-                          proFormContext.formRef!.current!.validateFields([
-                            name,
-                          ]);
-                        }
-                      }
+                      if (count === 0) validateIfNeeded();
                       onAfterRemove?.(index, count);
                     }}
                     containerClassName={containerClassName}

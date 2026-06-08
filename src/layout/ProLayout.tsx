@@ -29,8 +29,8 @@ import { DefaultHeader as Header } from './components/Header';
 import { PageLoading } from './components/PageLoading';
 import { SiderMenu } from './components/SiderMenu';
 import type { SiderMenuProps } from './components/SiderMenu/SiderMenu';
-import type { ProLayoutNavMenuSelectInfo } from './components/SiderMenu/types';
 import type { SiderMenuToken } from './components/SiderMenu/style';
+import type { ProLayoutNavMenuSelectInfo } from './components/SiderMenu/types';
 import { RouteContext } from './context/RouteContext';
 import type { ProSettings } from './defaultSettings';
 import { defaultSettings } from './defaultSettings';
@@ -38,7 +38,7 @@ import type { GetPageTitleProps } from './getPageTitle';
 import { getPageTitleInfo } from './getPageTitle';
 import type { LocaleType } from './locales';
 import { gLocaleObject } from './locales';
-import { useStyle } from './style';
+import { proLayoutVar, useStyle } from './style';
 import type {
   MenuDataItem,
   MessageDescriptor,
@@ -75,7 +75,34 @@ type GlobalTypes = Omit<
   'collapsed'
 >;
 
-export type ProLayoutProps = GlobalTypes & {
+/** ProLayout 根 props 上的 `layout`；含历史 `mix`（运行时按 `side` 处理） */
+export type ProLayoutLayoutMode = 'side' | 'top' | 'mix';
+
+const menuLayoutForPureSettings = (
+  layout: ProLayoutLayoutMode | undefined,
+): NonNullable<ProSettings['layout']> =>
+  layout === 'mix' || layout === undefined ? 'side' : layout;
+
+/** `menuRender` 回调首参：与 Header 一致，不含历史 `mix` */
+export type ProLayoutMenuRenderCallbackProps = Omit<
+  ProLayoutProps,
+  'layout'
+> & {
+  layout?: NonNullable<ProSettings['layout']>;
+};
+
+const toMenuRenderCallbackProps = (
+  p: ProLayoutProps,
+): ProLayoutMenuRenderCallbackProps => ({
+  ...p,
+  layout: menuLayoutForPureSettings(p.layout),
+});
+
+export type ProLayoutProps = Omit<GlobalTypes, 'layout'> & {
+  /**
+   * @name layout 的布局方式（根组件）
+   */
+  layout?: ProLayoutLayoutMode;
   /** 受控菜单选中项 */
   selectedKeys?: string[];
   /** 受控子菜单展开项，`false` 表示非受控 */
@@ -286,6 +313,7 @@ const headerRender = (
     <Header
       matchMenuKeys={matchMenuKeys}
       {...props}
+      layout={menuLayoutForPureSettings(props.layout)}
       stylish={props.stylish?.header}
     />
   );
@@ -320,13 +348,15 @@ const renderSiderMenu = (
   let { menuData } = props;
 
   /** 如果是分割菜单模式，需要专门实现一下 */
-  if (splitMenus && (openKeys !== false || layout === 'mix') && !isMobile) {
+  if (splitMenus && openKeys !== false && !isMobile) {
     const [key] = selectedKeys || matchMenuKeys;
     if (key) {
+      const selectedItem = props.menuData?.find((item) => item.key === key);
+      const children = selectedItem?.children || [];
       menuData =
-        props.menuData?.find((item) => item.key === key)?.children || [];
+        children.length > 0 ? children : selectedItem ? [selectedItem] : [];
     } else {
-      menuData = [];
+      menuData = props.menuData || [];
     }
   }
   // 这里走了可以少一次循环
@@ -335,7 +365,8 @@ const renderSiderMenu = (
   if (
     clearMenuData &&
     clearMenuData?.length < 1 &&
-    (splitMenus || suppressSiderWhenMenuEmpty)
+    !splitMenus &&
+    suppressSiderWhenMenuEmpty
   ) {
     return null;
   }
@@ -344,6 +375,7 @@ const renderSiderMenu = (
       <SiderMenu
         matchMenuKeys={matchMenuKeys}
         {...props}
+        layout={menuLayoutForPureSettings(props.layout)}
         hide
         stylish={props.stylish?.sider}
       />
@@ -354,13 +386,14 @@ const renderSiderMenu = (
     <SiderMenu
       matchMenuKeys={matchMenuKeys}
       {...props}
+      layout={menuLayoutForPureSettings(props.layout)}
       // 这里走了可以少一次循环
       menuData={clearMenuData}
       stylish={props.stylish?.sider}
     />
   );
   if (menuRender) {
-    return menuRender(props, defaultDom);
+    return menuRender(toMenuRenderCallbackProps(props), defaultDom);
   }
 
   return defaultDom;
@@ -449,11 +482,13 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
 
   const siderWidth = useMemo(() => {
     if (propsSiderWidth) return propsSiderWidth;
-    if (props.layout === 'mix') return 215;
     return 240;
-  }, [props.layout, propsSiderWidth]);
+  }, [propsSiderWidth]);
 
-  const menuCollapsedWidth = menu?.collapsedWidth ?? 48;
+  const actionsPlacement = props.actionsPlacement ?? (props.layout === 'top' ? 'header' : 'sider');
+
+  const menuCollapsedWidth =
+    menu?.collapsedWidth ?? defaultSettings.menu!.collapsedWidth!;
 
   const context = useContext(ConfigProvider.ConfigContext);
 
@@ -547,8 +582,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
     breadcrumbMap?: Map<string, MenuDataItem>;
     menuData?: MenuDataItem[];
   }>(
-    () =>
-      getMenuData(routeListForMenu, menu, formatMessage, menuDataRender),
+    () => getMenuData(routeListForMenu, menu, formatMessage, menuDataRender),
     [formatMessage, menu, menuDataRender, routeListForMenu],
   );
 
@@ -581,12 +615,17 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
 
   const {
     fixSiderbar,
-    layout: propsLayout,
+    layout: propsLayoutRaw,
     ...rest
   } = {
     ...props,
     ...currentMenuLayoutProps,
   };
+
+  /** 历史 `mix` 已移除，按侧栏布局处理，避免旧配置直接失效 */
+  const propsLayout = menuLayoutForPureSettings(
+    propsLayoutRaw as ProLayoutLayoutMode | undefined,
+  );
 
   const colSize = useBreakpoint();
 
@@ -640,6 +679,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
       prefixCls,
       ...props,
       siderWidth,
+      actionsPlacement,
       ...currentMenuLayoutProps,
       formatMessage,
       breadcrumb,
@@ -648,7 +688,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
         type: siderMenuType || menu?.type,
         loading: menuLoading,
       },
-      layout: propsLayout as 'side',
+      layout: propsLayout,
     },
     ['className', 'style', 'breadcrumbRender'],
   );
@@ -716,7 +756,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
       : contextIsChildrenLayout;
 
   const proLayoutClassName = `${prefixCls}-layout`;
-  const { wrapSSR, hashId } = useStyle(proLayoutClassName);
+  const { hashId } = useStyle(proLayoutClassName);
 
   // gen className
   const className = clsx(
@@ -729,6 +769,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
       [`${proLayoutClassName}-top-menu`]: propsLayout === 'top',
       [`${proLayoutClassName}-is-children`]: isChildrenLayout,
       [`${proLayoutClassName}-fix-siderbar`]: fixSiderbar,
+      [`${proLayoutClassName}-fixed-header`]: rest.fixedHeader,
       [`${proLayoutClassName}-${propsLayout}`]: propsLayout,
     },
   );
@@ -740,6 +781,14 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
     siderWidth,
     menuCollapsedWidth,
   );
+
+  /** 侧栏布局下固定顶栏只盖住主列，不铺满视口盖住侧栏 */
+  const fixedHeaderInsetStart = useMemo(() => {
+    if (propsLayout !== 'side' || !siderMenuDom || isMobile) {
+      return '0px';
+    }
+    return `${leftSiderWidth ?? 0}px`;
+  }, [propsLayout, siderMenuDom, isMobile, leftSiderWidth]);
 
   // siderMenuDom 为空的时候，不需要 padding
   const genLayoutStyle: CSSProperties = {
@@ -771,11 +820,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
       return bgLayoutImgList?.map((item, index) => {
         return (
           <img
-            key={
-              item.src
-                ? `${item.src}-${index}`
-                : `bg-layout-${index}`
-            }
+            key={item.src ? `${item.src}-${index}` : `bg-layout-${index}`}
             src={item.src}
             alt=""
             style={{
@@ -789,7 +834,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
     return null;
   }, [bgLayoutImgList]);
 
-  return wrapSSR(
+  return (
     <RouteContext.Provider
       value={{
         ...defaultProps,
@@ -816,9 +861,20 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
       {props.pure ? (
         <>{children}</>
       ) : (
-        <div className={className} data-testid="pro-layout">
+        <div
+          className={className}
+          data-testid="pro-layout"
+          style={
+            {
+              [proLayoutVar.fixedHeaderStart]: fixedHeaderInsetStart,
+            } as CSSProperties
+          }
+        >
           {bgImgStyleList || token.layout?.bgLayout ? (
-            <div className={clsx(`${proLayoutClassName}-bg-list`, hashId)}>
+            <div
+              className={clsx(`${proLayoutClassName}-bg-list`, hashId)}
+              data-testid="pro-layout-bg-list"
+            >
               {bgImgStyleList}
             </div>
           ) : null}
@@ -843,6 +899,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
             <div
               style={genLayoutStyle}
               className={clsx(`${proLayoutClassName}-container`, hashId)}
+              data-testid="pro-layout-container"
             >
               {headerDom}
               <WrapContent
@@ -859,6 +916,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
               {hasFooterToolbar && (
                 <div
                   className={`${proLayoutClassName}-has-footer`}
+                  data-testid="pro-layout-has-footer"
                   style={{
                     height: 64,
                     marginBlockStart:
@@ -871,7 +929,7 @@ const BaseProLayout: React.FC<ProLayoutProps> = (props) => {
           </Layout>
         </div>
       )}
-    </RouteContext.Provider>,
+    </RouteContext.Provider>
   );
 };
 
@@ -890,10 +948,7 @@ const ProLayout: React.FC<ProLayoutProps> = (props) => {
           : undefined
       }
     >
-      <ProConfigProvider
-        token={props.token}
-        prefixCls={props.prefixCls}
-      >
+      <ProConfigProvider token={props.token} prefixCls={props.prefixCls}>
         <BaseProLayout
           logo={<Logo />}
           {...defaultSettings}

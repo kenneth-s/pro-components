@@ -3,6 +3,7 @@ import type { FormItemProps } from 'antd';
 import { clsx } from 'clsx';
 import React, { useContext, useMemo, useState } from 'react';
 import {
+  isDropdownValueType,
   omitUndefined,
   pickProFormItemProps,
   stringify,
@@ -11,6 +12,7 @@ import {
 } from '../../../utils';
 import FieldContext from '../../FieldContext';
 import { useGridHelpers } from '../../helpers';
+import { LightWrapper } from '../../layouts/LightFilter/LightWrapper';
 import type {
   ExtendsProps,
   ProFormFieldItemProps,
@@ -266,17 +268,54 @@ export function warpField<P extends ProFormFieldItemProps = any>(
       );
     }, [fieldProFieldProps, fieldFieldProps, rest]);
 
+    const isLightMode = proFieldProps?.light === true && !customLightMode;
+
     // 使用useMemo包裹避免不必要的re-render
     const formItem = useDeepCompareMemo(() => {
+      // light 模式下（非下拉类）：由 Form.Item 正常注入 value，LightWrapper 作为 Form.Item
+      // 的直接 children 接收 value/onChange，再把 Field 渲染在 Popover 内部
+      if (isLightMode && !isDropdownValueType(valueType)) {
+        return (
+          <ProFormItem
+            label={undefined}
+            tooltip={false}
+            valuePropName={valuePropName}
+            key={props.proFormFieldKey || otherProps.name?.toString()}
+            {...otherProps}
+            ignoreFormItem={ignoreFormItem}
+            transform={transform}
+            dataFormat={fieldProps?.format}
+            valueType={valueType}
+            messageVariables={{
+              label: (label as string) || '',
+              ...otherProps?.messageVariables,
+            }}
+            convertValue={convertValue}
+          >
+            <LightWrapper
+              label={label}
+              valuePropName={valuePropName}
+              variant={rest.variant ?? fieldProps?.variant}
+              allowClear={field?.props?.allowClear ?? allowClear}
+              footerRender={field?.props?.footerRender}
+              placement={rest.placement}
+              labelFormatter={lightFilterLabelFormatter}
+              valueType={valueType}
+            >
+              {field}
+            </LightWrapper>
+          </ProFormItem>
+        );
+      }
+
       return (
         <ProFormItem
-          // 全局的提供一个 tip 功能，可以减少代码量
-          // 轻量模式下不通过 FormItem 显示 label
-          label={label && proFieldProps?.light !== true ? label : undefined}
-          tooltip={proFieldProps?.light !== true && tooltip}
           valuePropName={valuePropName}
           key={props.proFormFieldKey || otherProps.name?.toString()}
           {...otherProps}
+          // 轻量模式下 Form.Item 不展示 label/tooltip，放在展开之后确保不被覆盖
+          label={isLightMode ? undefined : label}
+          tooltip={isLightMode ? undefined : tooltip}
           ignoreFormItem={ignoreFormItem}
           transform={transform}
           dataFormat={fieldProps?.format}
@@ -286,29 +325,13 @@ export function warpField<P extends ProFormFieldItemProps = any>(
             ...otherProps?.messageVariables,
           }}
           convertValue={convertValue}
-          lightProps={omitUndefined({
-            ...fieldProps,
-            variant: rest.variant ?? fieldProps?.variant,
-            valueType,
-            bordered,
-            allowClear: field?.props?.allowClear ?? allowClear,
-            light: proFieldProps?.light,
-            label,
-            customLightMode,
-            labelFormatter: lightFilterLabelFormatter,
-            valuePropName,
-            footerRender: field?.props?.footerRender,
-            // 使用用户的配置覆盖默认的配置
-            ...rest.lightProps,
-            ...otherProps.lightProps,
-          })}
         >
           {field}
         </ProFormItem>
       );
     }, [
+      isLightMode,
       label,
-      proFieldProps?.light,
       tooltip,
       valuePropName,
       props.proFormFieldKey,
@@ -323,7 +346,8 @@ export function warpField<P extends ProFormFieldItemProps = any>(
       allowClear,
       customLightMode,
       lightFilterLabelFormatter,
-      rest.lightProps,
+      rest.variant,
+      rest.placement,
     ]);
 
     const { ColWrapper } = useGridHelpers(rest);

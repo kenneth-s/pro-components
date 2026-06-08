@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const itIT: ProLocale = {
   moneySymbol: '€',
+  deleteThisLine: 'Elimina questa riga',
+  copyThisLine: 'Copia questa riga',
   form: {
     lightFilter: {
       more: 'più',
@@ -57,15 +61,19 @@ export default {
     submitText: 'Accedi',
   },
   editableTable: {
+    onlyOneLineEditor: 'È possibile modificare solo una riga alla volta',
+    onlyAddOneLine: 'È possibile aggiungere solo una riga alla volta',
     action: {
-      save: 'salva',
-      cancel: 'annulla',
-      delete: 'Delete',
-      add: 'add a row of data',
+      save: 'Salva',
+      cancel: 'Annulla',
+      delete: 'Elimina',
+      add: 'Aggiungi una riga di dati',
     },
   },
   switch: {
-    open: 'open',
-    close: 'chiudi',
+    open: 'Apri',
+    close: 'Chiudi',
   },
 };
+
+export default itIT;

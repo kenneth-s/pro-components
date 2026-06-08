@@ -6,16 +6,13 @@ import React, { useContext } from 'react';
 import type { PureSettings } from '../../defaultSettings';
 import type { MenuDataItem } from '../../index';
 import type { WithFalse } from '../../typing';
-import { clearMenuItem } from '../../utils/utils';
-import { AppsLogoComponents, defaultRenderLogo } from '../AppsLogoComponents';
+import { defaultRenderLogo } from '../AppsLogoComponents';
 import type { AppItemProps, AppListProps } from '../AppsLogoComponents/types';
 import type { HeaderViewProps } from '../Header';
 import type {
   PrivateSiderMenuProps,
   SiderMenuProps,
 } from '../SiderMenu/SiderMenu';
-import { renderLogoAndTitle } from '../SiderMenu/SiderMenu';
-import { TopNavHeader } from '../TopNavHeader';
 import { ActionsContent } from './ActionsContent';
 import { useStyle } from './style';
 
@@ -63,6 +60,12 @@ export type GlobalHeaderProps = {
   actionsRender?: WithFalse<
     (props: HeaderViewProps) => React.ReactNode[] | React.ReactNode
   >;
+  /**
+   * @name 控制 actions/avatar 渲染位置
+   * - `'sider'`（默认）：渲染在侧边栏底部
+   * - `'header'`：渲染在顶部 header 中
+   */
+  actionsPlacement?: 'header' | 'sider';
 
   /** 头像的设置 */
   avatarProps?: WithFalse<
@@ -100,51 +103,33 @@ const GlobalHeader: React.FC<GlobalHeaderProps & PrivateSiderMenuProps> = (
     collapsed,
     onCollapse,
     menuHeaderRender,
-    onMenuHeaderClick,
     className: propClassName,
     style,
-    layout,
     children,
-    splitMenus,
-    menuData,
     prefixCls,
   } = props;
   const { getPrefixCls, direction } = useContext(ConfigProvider.ConfigContext);
   const baseClassName = `${prefixCls || getPrefixCls('pro')}-global-header`;
 
-  const { wrapSSR, hashId } = useStyle(baseClassName);
+  const { hashId } = useStyle(baseClassName);
 
   const className = clsx(propClassName, baseClassName, hashId);
 
-  if (layout === 'mix' && !isMobile && splitMenus) {
-    const noChildrenMenuData = (menuData || []).map((item) => ({
-      ...item,
-      children: undefined,
-      routes: undefined,
-    }));
-    const clearMenuData = clearMenuItem(noChildrenMenuData);
-    return (
-      <TopNavHeader
-        mode="horizontal"
-        {...props}
-        splitMenus={false}
-        menuData={clearMenuData}
-      />
-    );
-  }
-
   const logoClassNames = clsx(`${baseClassName}-logo`, hashId, {
     [`${baseClassName}-logo-rtl`]: direction === 'rtl',
-    [`${baseClassName}-logo-mix`]: layout === 'mix',
     [`${baseClassName}-logo-mobile`]: isMobile,
   });
 
   const logoDom = (
-    <span className={logoClassNames} key="logo">
-      <a>{defaultRenderLogo(logo)}</a>
+    <span
+      className={logoClassNames}
+      key="logo"
+      data-testid="pro-layout-global-header-logo"
+    >
+      <span>{defaultRenderLogo(logo)}</span>
     </span>
   );
-  return wrapSSR(
+  return (
     <div
       className={className}
       style={{ ...style }}
@@ -153,6 +138,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps & PrivateSiderMenuProps> = (
       {isMobile && (
         <span
           className={clsx(`${baseClassName}-collapsed-button`, hashId)}
+          data-testid="pro-layout-global-header-collapsed-button"
           onClick={() => {
             onCollapse?.(!collapsed);
           }}
@@ -161,22 +147,14 @@ const GlobalHeader: React.FC<GlobalHeaderProps & PrivateSiderMenuProps> = (
         </span>
       )}
       {isMobile && renderLogo(menuHeaderRender, logoDom)}
-      {layout === 'mix' && !isMobile && (
-        <>
-          <AppsLogoComponents {...props} />
-          <div className={logoClassNames} onClick={onMenuHeaderClick}>
-            {renderLogoAndTitle(
-              { ...props, collapsed: false },
-              'headerTitleRender',
-            )}
-          </div>
-        </>
-      )}
-      <div style={{ flex: 1 }}>{children}</div>
-      {(props.actionsRender || props.avatarProps) && (
-        <ActionsContent {...props} />
-      )}
-    </div>,
+      <div style={{ flex: 1 }} data-testid="pro-layout-global-header-content">
+        {children}
+      </div>
+      {props.actionsPlacement !== 'sider' &&
+        (props.actionsRender || props.avatarProps) && (
+          <ActionsContent {...props} />
+        )}
+    </div>
   );
 };
 

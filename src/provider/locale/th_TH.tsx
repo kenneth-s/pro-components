@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const thTH: ProLocale = {
   moneySymbol: '฿',
   deleteThisLine: 'ลบบรรทัดนี้',
   copyThisLine: 'คัดลอกบรรทัดนี้',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: 'แก้ไขได้เพียงบรรทัดเดียวเท่านั้น',
+    onlyAddOneLine: 'เพิ่มได้เพียงบรรทัดเดียวเท่านั้น',
     action: {
       save: 'บันทึก',
       cancel: 'ยกเลิก',
@@ -72,3 +75,5 @@ export default {
     close: 'ปิด',
   },
 };
+
+export default thTH;

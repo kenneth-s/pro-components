@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const skSK: ProLocale = {
   moneySymbol: '€',
   deleteThisLine: 'Odstrániť tento riadok',
   copyThisLine: 'Skopírujte tento riadok',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: 'Upravovať možno iba jeden riadok',
+    onlyAddOneLine: 'Pridať možno iba jeden riadok',
     action: {
       save: 'Uložiť',
       cancel: 'Zrušiť',
@@ -72,3 +75,5 @@ export default {
     close: 'zavrieť',
   },
 };
+
+export default skSK;

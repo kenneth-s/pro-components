@@ -1,13 +1,7 @@
 ﻿import { useControlledState } from '@rc-component/util';
-import type { SelectProps } from 'antd';
-import { ConfigProvider } from 'antd';
-import React, {
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import type { GetRef, SelectProps } from 'antd';
+import { ConfigProvider, Select } from 'antd';
+import React, { useImperativeHandle, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { useIntl } from '../../../provider';
 import {
@@ -25,8 +19,9 @@ import {
   isProFieldReadMode,
 } from '../../internal/fieldMode';
 import type { ProFieldFC } from '../../types';
-import { FieldSelectEdit } from './FieldSelectEdit';
+import { FieldSelectLightEdit } from './FieldSelectLightEdit';
 import { FieldSelectRead } from './FieldSelectRead';
+import { FieldSelectSearchEdit } from './FieldSelectSearchEdit';
 import type { FieldSelectProps } from './types';
 
 export type { FieldSelectProps };
@@ -295,32 +290,27 @@ const FieldSelect: ProFieldFC<
     valueEnum,
     render,
     formItemRender,
-    request,
+    request: _request,
     fieldProps,
     light,
-    proFieldKey,
-    params,
+    proFieldKey: _proFieldKey,
+    params: _params,
     label,
     variant,
     id,
     lightLabel,
     labelTrigger,
-    ...rest
   } = props;
 
-  const inputRef = useRef();
+  const inputRef = useRef<GetRef<typeof Select>>(null);
   const intl = useIntl();
-  const keyWordsRef = useRef<string>('');
   const { fieldNames } = fieldProps;
 
-  useEffect(() => {
-    keyWordsRef.current = fieldProps?.searchValue;
-  }, [fieldProps?.searchValue]);
-
   const [loading, options, fetchData, resetData] = useFieldFetchData(props);
-  const { componentSize: componentSizeFromConfig } = ConfigProvider?.useConfig?.() || {
-    componentSize: undefined,
-  };
+  const { componentSize: componentSizeFromConfig } =
+    ConfigProvider?.useConfig?.() || {
+      componentSize: undefined,
+    };
   const componentSize = componentSizeFromConfig ?? 'middle';
   useImperativeHandle(
     ref,
@@ -373,28 +363,32 @@ const FieldSelect: ProFieldFC<
   }
 
   if (isProFieldEditOrUpdateMode(mode)) {
-    return (
-      <FieldSelectEdit
-        mode={mode}
-        formItemRender={formItemRender}
-        fieldProps={fieldProps}
-        light={light}
-        id={id}
-        label={label}
-        variant={variant}
-        lightLabel={lightLabel}
-        labelTrigger={labelTrigger}
-        intl={intl}
-        loading={loading}
-        options={options}
-        fetchData={fetchData}
-        resetData={resetData}
-        inputRef={inputRef}
-        keyWordsRef={keyWordsRef}
-        componentSize={componentSize}
-        {...props}
-      />
-    );
+    const sharedEditProps = {
+      mode,
+      formItemRender,
+      fieldProps,
+      id,
+      label,
+      variant,
+      intl,
+      loading,
+      options,
+      fetchData,
+      resetData,
+      inputRef,
+      ...props,
+    };
+    if (light) {
+      return (
+        <FieldSelectLightEdit
+          lightLabel={lightLabel}
+          labelTrigger={labelTrigger}
+          {...sharedEditProps}
+          componentSize={componentSize}
+        />
+      );
+    }
+    return <FieldSelectSearchEdit {...sharedEditProps} />;
   }
   return null;
 };

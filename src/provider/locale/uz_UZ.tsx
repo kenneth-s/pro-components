@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const uzUZ: ProLocale = {
   moneySymbol: 'UZS',
+  deleteThisLine: 'Bu qatorni oʻchirish',
+  copyThisLine: 'Bu qatorni nusxalash',
   form: {
     lightFilter: {
       more: 'Yana',
@@ -57,6 +61,9 @@ export default {
     submitText: 'Kirish',
   },
   editableTable: {
+    onlyOneLineEditor:
+      'Bir vaqtning oʻzida faqat bitta qator tahrirlanishi mumkin',
+    onlyAddOneLine: 'Bir vaqtning oʻzida faqat bitta qator qoʻshilishi mumkin',
     action: {
       save: 'Saqlash',
       cancel: 'Bekor qilish',
@@ -69,3 +76,5 @@ export default {
     close: 'Yopish',
   },
 };
+
+export default uzUZ;

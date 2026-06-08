@@ -1,6 +1,6 @@
 import type { FormProps } from 'antd';
 import { Form } from 'antd';
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { CommonFormProps } from '../../BaseForm';
 import { BaseForm } from '../../BaseForm';
 import { EditOrReadOnlyContext } from '../../BaseForm/EditOrReadOnlyContext';
@@ -16,19 +16,18 @@ function ProForm<T = Record<string, any>>(
     children?: React.ReactNode | React.ReactNode[];
   },
 ) {
+  const contentRender = useCallback(
+    (items: React.ReactNode[], submitter: React.ReactNode, _form: unknown) => (
+      <>
+        {items}
+        {submitter}
+      </>
+    ),
+    [],
+  );
+
   return (
-    <BaseForm
-      layout="vertical"
-      contentRender={(items, submitter) => {
-        return (
-          <>
-            {items}
-            {submitter}
-          </>
-        );
-      }}
-      {...props}
-    />
+    <BaseForm layout="vertical" contentRender={contentRender} {...props} />
   );
 }
 

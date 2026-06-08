@@ -1,9 +1,13 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const viVN: ProLocale = {
   moneySymbol: '₫',
+  deleteThisLine: 'Xóa dòng này',
+  copyThisLine: 'Sao chép dòng này',
   form: {
     lightFilter: {
       more: 'Nhiều hơn',
-      clear: 'Trong',
+      clear: 'Xóa',
       confirm: 'Xác nhận',
       itemUnit: 'Mục',
     },
@@ -44,7 +48,7 @@ export default {
     reload: 'Làm mới',
     density: 'Mật độ hiển thị',
     densityDefault: 'Mặc định',
-    densityLarger: 'Mặc định',
+    densityLarger: 'Lớn hơn',
     densityMiddle: 'Trung bình',
     densitySmall: 'Chật',
   },
@@ -57,8 +61,10 @@ export default {
     submitText: 'Đăng nhập',
   },
   editableTable: {
+    onlyOneLineEditor: 'Chỉ có thể chỉnh sửa một dòng cùng lúc',
+    onlyAddOneLine: 'Chỉ có thể thêm một dòng cùng lúc',
     action: {
-      save: 'Cứu',
+      save: 'Lưu',
       cancel: 'Hủy',
       delete: 'Xóa',
       add: 'thêm một hàng dữ liệu',
@@ -69,3 +75,5 @@ export default {
     close: 'đóng',
   },
 };
+
+export default viVN;

@@ -1,5 +1,6 @@
+import type { TableColumnType } from 'antd';
 import type { Key } from 'react';
-import React, { useMemo } from 'react';
+import React from 'react';
 import type { ActionType } from '.';
 import Toolbar from './components/ToolBar';
 import type { ProTableProps } from './typing';
@@ -10,7 +11,7 @@ export type TableToolbarProps<T extends Record<string, any>> = {
   hideToolbar: boolean;
   selectedRows: T[];
   selectedRowKeys: (string | number | Key)[] | undefined;
-  tableColumn: any[];
+  tableColumn: (TableColumnType<T> & { index?: number })[];
   tooltip: ProTableProps<T, any, any>['tooltip'];
   toolbar: ProTableProps<T, any, any>['toolbar'];
   isLightFilter: boolean;
@@ -43,47 +44,29 @@ export function TableToolbar<T extends Record<string, any>>(
     formSearch,
   } = props;
 
-  return useMemo(() => {
-    if (toolBarRender === false) {
-      return null;
-    }
-    return (
-      <Toolbar<T>
-        headerTitle={headerTitle}
-        hideToolbar={hideToolbar}
-        selectedRows={selectedRows}
-        selectedRowKeys={selectedRowKeys!}
-        tableColumn={tableColumn}
-        tooltip={tooltip}
-        toolbar={toolbar}
-        onFormSearchSubmit={(newValues) => {
-          setFormSearch({
-            ...(formSearch || {}),
-            ...newValues,
-          });
-        }}
-        searchNode={isLightFilter ? searchNode : null}
-        options={options}
-        optionsRender={optionsRender}
-        actionRef={actionRef}
-        toolBarRender={toolBarRender}
-      />
-    );
-  }, [
-    actionRef,
-    formSearch,
-    headerTitle,
-    hideToolbar,
-    isLightFilter,
-    options,
-    optionsRender,
-    searchNode,
-    selectedRowKeys,
-    selectedRows,
-    setFormSearch,
-    tableColumn,
-    toolBarRender,
-    tooltip,
-    toolbar,
-  ]);
+  if (toolBarRender === false) {
+    return null;
+  }
+  return (
+    <Toolbar<T>
+      headerTitle={headerTitle}
+      hideToolbar={hideToolbar}
+      selectedRows={selectedRows}
+      selectedRowKeys={selectedRowKeys!}
+      tableColumn={tableColumn}
+      tooltip={tooltip}
+      toolbar={toolbar}
+      onFormSearchSubmit={(newValues) => {
+        setFormSearch({
+          ...(formSearch || {}),
+          ...newValues,
+        });
+      }}
+      searchNode={isLightFilter ? searchNode : null}
+      options={options}
+      optionsRender={optionsRender}
+      actionRef={actionRef}
+      toolBarRender={toolBarRender}
+    />
+  );
 }

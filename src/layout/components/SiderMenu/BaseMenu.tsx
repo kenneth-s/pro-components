@@ -12,21 +12,24 @@ import React, {
 } from 'react';
 import { isImg, isUrl } from '../../../utils';
 import { getOpenKeysFromMenuData } from '../../utils/utils';
-import type { PrivateSiderMenuProps } from './SiderMenu';
 import {
-  mapMenuDataToNavNodes,
-  type BaseMenuProps as BaseMenuTreeProps,
   type BaseMenuTreeContext,
+  type BaseMenuProps as BaseMenuTreeProps,
+  mapMenuDataToNavNodes,
 } from './menuTree';
 import { ProLayoutNavMenu } from './ProLayoutNavMenu';
+import type { PrivateSiderMenuProps } from './SiderMenu';
 import { useStyle } from './style/menu';
+
 export type {
   MenuMode,
   ProLayoutNavMenuDomProps,
   ProLayoutNavMenuSelectInfo,
 } from './types';
 
-export type BaseMenuProps = BaseMenuTreeProps;
+export type BaseMenuProps = BaseMenuTreeProps & {
+  'data-testid'?: string;
+};
 
 const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
   const { getPrefixCls } = useContext(ConfigProvider.ConfigContext);
@@ -43,10 +46,14 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
     onSelect: propsOnSelect,
     menuRenderType,
     openKeys: propsOpenKeys,
+    'data-testid': dataTestId,
   } = props;
 
   const renderIcon = useCallback(
-    (icon: string | React.ReactNode, iconClassName: string): React.ReactNode => {
+    (
+      icon: string | React.ReactNode,
+      iconClassName: string,
+    ): React.ReactNode => {
       if (icon == null || icon === false) {
         return null;
       }
@@ -63,6 +70,7 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
               src={icon}
               alt=""
               className={iconClassName}
+              data-testid="pro-layout-menu-icon-image"
             />
           );
         }
@@ -74,6 +82,9 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
 
   const baseClassName = `${prefixClsProp}-base-menu-${mode}`;
   const defaultOpenKeysRef = useRef<string[]>([]);
+  const prevCollapsedRef = useRef(props.collapsed);
+  /** Sider 宽度过渡时长（ms），与 SiderMenu 的 transition 0.2s 保持一致 */
+  const SIDER_TRANSITION_MS = 200;
 
   const [defaultOpenAll, setDefaultOpenAll] = useState(menu?.defaultOpenAll);
 
@@ -96,20 +107,29 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
         | ((prev: (string | number)[] | false) => (string | number)[] | false),
     ) => {
       setOpenKeysInner((prev) => {
-        const next =
-          typeof updater === 'function'
-            ? (
-                updater as (
-                  p: (string | number)[] | false,
-                ) => (string | number)[] | false
-              )(prev)
-            : updater;
-        (onOpenChange as (keys?: (string | number)[] | false) => void)?.(next);
-        return next;
+        return typeof updater === 'function' ? updater(prev) : updater;
       });
     },
-    [onOpenChange],
+    [],
   );
+
+  /**
+   * 禁止在 `setState` updater 里调 `onOpenChange`：React 18 Strict Mode 开发环境会双次调用
+   * updater，用户侧会收到两次相同展开变更（例如一次点击 console 两次）。
+   */
+  const openKeysNotifySigRef = useRef<string | null>(null);
+  useEffect(() => {
+    const callbackKeys =
+      openKeys === false ? [] : (openKeys || []).map((k) => String(k));
+    const sig = callbackKeys.join('\u0001');
+    if (openKeysNotifySigRef.current === null) {
+      openKeysNotifySigRef.current = sig;
+      return;
+    }
+    if (openKeysNotifySigRef.current === sig) return;
+    openKeysNotifySigRef.current = sig;
+    onOpenChange?.(callbackKeys);
+  }, [openKeys, onOpenChange]);
 
   const [selectedKeys, setSelectedKeysInner] = useControlledState<
     string[] | undefined
@@ -146,14 +166,19 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
     }
   }, [matchMenuKeys.join('-')]);
 
-  useEffect(
-    () => {
-      if (
-        matchMenuKeys.length > 0 &&
-        matchMenuKeys.join('-') !== (selectedKeys || []).join('-')
-      ) {
-        setSelectedKeys(matchMenuKeys);
-      }
+  useEffect(() => {
+    const wasCollapsed = prevCollapsedRef.current;
+    prevCollapsedRef.current = props.collapsed;
+    const isExpanding = wasCollapsed && !props.collapsed;
+
+    if (
+      matchMenuKeys.length > 0 &&
+      matchMenuKeys.join('-') !== (selectedKeys || []).join('-')
+    ) {
+      setSelectedKeys(matchMenuKeys);
+    }
+
+    const applyOpenKeys = () => {
       if (
         !defaultOpenAll &&
         propsOpenKeys !== false &&
@@ -187,11 +212,17 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
       } else {
         setDefaultOpenAll(false);
       }
-    },
-    [matchMenuKeys.join('-'), props.collapsed],
-  );
+    };
 
-  const { wrapSSR, hashId } = useStyle(baseClassName, mode);
+    if (isExpanding) {
+      const timer = setTimeout(applyOpenKeys, SIDER_TRANSITION_MS);
+      return () => clearTimeout(timer);
+    }
+    applyOpenKeys();
+    return undefined;
+  }, [matchMenuKeys.join('-'), props.collapsed]);
+
+  const { hashId } = useStyle(baseClassName, mode);
 
   const baseMenuTreeContext = useMemo<BaseMenuTreeContext>(
     () => ({
@@ -205,8 +236,7 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
   );
 
   if (menu?.loading) {
-    const compactMenuSkeleton =
-      mode === 'horizontal' || !!props.collapsed;
+    const compactMenuSkeleton = mode === 'horizontal' || !!props.collapsed;
     return (
       <div
         style={
@@ -253,7 +283,7 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
         ? []
         : (openKeys || []).map((k) => String(k));
 
-  return wrapSSR(
+  return (
     <ProLayoutNavMenu
       key="ProLayoutNavMenu"
       baseClassName={baseClassName}
@@ -281,16 +311,13 @@ const BaseMenu: React.FC<BaseMenuProps & PrivateSiderMenuProps> = (props) => {
         ...style,
         ...menuPropsStyle,
       }}
+      data-testid={dataTestId || 'pro-layout-base-menu'}
       className={clsx(className, hashId, baseClassName, menuPropsClassName, {
         'ant-pro-sider-menu':
           mode !== 'horizontal' && props.menuRenderType !== 'header',
-        [`${baseClassName}-horizontal`]: mode === 'horizontal',
-        [`${baseClassName}--horizontal`]: mode === 'horizontal',
-        [`${baseClassName}-collapsed`]: props.collapsed,
-        [`${baseClassName}--collapsed`]: props.collapsed,
       })}
       {...restMenuProps}
-    />,
+    />
   );
 };
 

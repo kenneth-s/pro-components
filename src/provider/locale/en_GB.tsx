@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const enGB: ProLocale = {
   moneySymbol: '£',
+  deleteThisLine: 'Delete this line',
+  copyThisLine: 'Copy this line',
   form: {
     lightFilter: {
       more: 'More',
@@ -71,3 +75,5 @@ export default {
     close: 'close',
   },
 };
+
+export default enGB;

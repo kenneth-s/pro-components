@@ -9,6 +9,7 @@ import React, { useContext } from 'react';
 import type { CheckCardProps } from '../card';
 import { ProProvider } from '../provider';
 import type { ActionType } from '../table';
+import { useRefFunction } from '../utils';
 import useLazyKVMap from '../utils/useLazyKVMap';
 import usePagination from '../utils/usePagination';
 import useSelection from '../utils/useSelection';
@@ -19,9 +20,10 @@ import ProListItem from './Item';
 import type { ListProps } from './ProListBase';
 import { ProListContainer } from './ProListBase';
 
-type AntdListProps<RecordType> = Omit<ListProps<RecordType>, 'rowKey'>;
+type ListSlotColumn<RecordType> = TableColumnType<RecordType> & {
+  listSlot: string;
+};
 type Key = React.Key;
-type TriggerEventHandler<RecordType> = (record: RecordType) => void;
 
 /** 自定义列表项渲染，defaultDom 为 ProList 默认渲染的列表项元素 */
 export type ProListItemRender<RecordType> = (
@@ -31,8 +33,8 @@ export type ProListItemRender<RecordType> = (
 ) => React.ReactNode;
 
 export type ListViewProps<RecordType> = Omit<
-  AntdListProps<RecordType>,
-  'renderItem'
+  ListProps<RecordType>,
+  'rowKey' | 'renderItem'
 > &
   Pick<
     TableProps<RecordType>,
@@ -97,6 +99,25 @@ function ListView<RecordType extends AnyObject>(
   }, [rowKey]);
 
   const [getRecordByKey] = useLazyKVMap(dataSource, 'children', getRowKey);
+
+  const listSlotColumns = React.useMemo((): ListSlotColumn<RecordType>[] => {
+    if (!columns?.length) return [];
+    const slots: ListSlotColumn<RecordType>[] = [];
+    for (const column of columns as (TableColumnType<RecordType> & {
+      listSlot?: string;
+    })[]) {
+      const { listSlot } = column;
+      if (listSlot && PRO_LIST_KEYS_MAP.has(listSlot)) {
+        slots.push(column as ListSlotColumn<RecordType>);
+      }
+    }
+    return slots;
+  }, [columns]);
+
+  const gridCardStaticProps = React.useMemo(() => {
+    if (!rest.grid) return null;
+    return { ...itemCardProps, ...rest.grid };
+  }, [itemCardProps, rest.grid]);
 
   // 合并分页配置，兼容 antd 的分页
   const [mergedPagination] = usePagination(
@@ -163,9 +184,9 @@ function ListView<RecordType extends AnyObject>(
     [expandedRowKeys, innerExpandedKeys],
   );
 
-  const onTriggerExpand: TriggerEventHandler<RecordType> = React.useCallback(
-    (record: RecordType) => {
-      const key = getRowKey(record, dataSource.indexOf(record));
+  const onTriggerExpand = useRefFunction(
+    (record: RecordType, rowIndex: number) => {
+      const key = getRowKey(record, rowIndex);
       const hasKey = mergedExpandedKeys.has(key);
       const nextKeys = new Set(mergedExpandedKeys);
       if (hasKey) {
@@ -179,16 +200,92 @@ function ListView<RecordType extends AnyObject>(
       onExpand?.(!hasKey, record);
       onExpandedRowsChange?.(newExpandedKeys);
     },
-    [getRowKey, mergedExpandedKeys, dataSource, onExpand, onExpandedRowsChange],
   );
 
   /** 展开收起功能区域 end */
 
   /** 这个是 选择框的 render 方法 为了兼容 antd 的 table,用了同样的渲染逻辑 所以看起来有点奇怪 */
   const selectItemDom = selectItemRender([])[0];
+
+  const renderListItem = useRefFunction((item: RecordType, index: number) => {
+    const listItemProps: Partial<ItemProps<RecordType>> = {
+      className:
+        typeof rowClassName === 'function'
+          ? rowClassName(item, index)
+          : rowClassName,
+    };
+
+    listSlotColumns.forEach((column) => {
+      const dataIndex = (column.dataIndex ||
+        column.listSlot ||
+        column.key) as string;
+      const rawData = Array.isArray(dataIndex)
+        ? get(item, dataIndex as string[])
+        : item[dataIndex];
+
+      const data = column.render
+        ? column.render(rawData, item, index)
+        : rawData;
+      const propKey = column.listSlot === 'aside' ? 'extra' : column.listSlot;
+      if (data !== '-') (listItemProps as any)[propKey] = data;
+    });
+    const checkboxDom = selectItemDom?.render?.(
+      item,
+      item,
+      index,
+    ) as React.ReactNode;
+
+    const { isEditable, recordKey } =
+      actionRef.current?.isEditable({ ...item, index }) || {};
+
+    const itemKey = getRowKey(item, index);
+    const isChecked = selectedKeySet.has(itemKey);
+
+    const cardProps = gridCardStaticProps
+      ? {
+          ...gridCardStaticProps,
+          checked: isChecked,
+          onChange: React.isValidElement(checkboxDom)
+            ? (changeChecked: boolean) =>
+                ((checkboxDom as React.JSX.Element)?.props as any)?.onChange({
+                  nativeEvent: {},
+                  target: { checked: changeChecked },
+                  changeChecked,
+                })
+            : undefined,
+        }
+      : undefined;
+
+    const defaultDom = (
+      <ProListItem
+        key={recordKey}
+        cardProps={cardProps}
+        {...listItemProps}
+        recordKey={recordKey}
+        isEditable={isEditable || false}
+        expandable={expandableConfig}
+        expand={mergedExpandedKeys.has(itemKey)}
+        onExpand={() => onTriggerExpand(item, index)}
+        index={index}
+        record={item}
+        item={item}
+        itemTitleRender={itemTitleRender}
+        itemHeaderRender={itemHeaderRender}
+        rowSupportExpand={!rowExpandable || rowExpandable(item)}
+        selected={selectedKeySet.has(itemKey)}
+        checkbox={checkboxDom as React.ReactElement}
+        onRow={onRow}
+        onItem={onItem}
+      />
+    );
+
+    return itemRender ? itemRender(item, index, defaultDom) : defaultDom;
+  });
+
   return (
     <ProListContainer<RecordType>
       {...rest}
+      suppressContainerDataSlice
       hashId={hashId}
       className={clsx(
         getPrefixCls('pro-list-container', customizePrefixCls),
@@ -200,98 +297,7 @@ function ListView<RecordType extends AnyObject>(
         pagination &&
         (mergedPagination as ListViewProps<RecordType>['pagination'])
       }
-      renderItem={(item, index) => {
-        const listItemProps: Partial<ItemProps<RecordType>> = {
-          className:
-            typeof rowClassName === 'function'
-              ? rowClassName(item, index)
-              : rowClassName,
-        };
-
-        (
-          columns as (TableColumnType<RecordType> & {
-            listSlot: string;
-          })[]
-        )?.forEach((column) => {
-          const { listSlot } = column;
-          if (!PRO_LIST_KEYS_MAP.has(listSlot)) {
-            return;
-          }
-          const dataIndex = (column.dataIndex ||
-            listSlot ||
-            column.key) as string;
-          const rawData = Array.isArray(dataIndex)
-            ? get(item, dataIndex as string[])
-            : item[dataIndex];
-
-          // 调用protable的列配置渲染数据
-          const data = column.render
-            ? column.render(rawData, item, index)
-            : rawData;
-          // aside 是 extra 的新名称，映射到 Item 的 extra 属性
-          const propKey =
-            column.listSlot === 'aside' ? 'extra' : column.listSlot;
-          if (data !== '-') (listItemProps as any)[propKey] = data;
-        });
-        const checkboxDom = selectItemDom?.render?.(
-          item,
-          item,
-          index,
-        ) as React.ReactNode;
-
-        const { isEditable, recordKey } =
-          actionRef.current?.isEditable({ ...item, index }) || {};
-
-        const itemKey = getRowKey(item, index);
-        const isChecked = selectedKeySet.has(itemKey);
-
-        const cardProps = rest.grid
-          ? {
-              ...itemCardProps,
-              ...rest.grid,
-              checked: isChecked,
-              onChange: React.isValidElement(checkboxDom)
-                ? (changeChecked: boolean) =>
-                    (
-                      (checkboxDom as React.JSX.Element)?.props as any
-                    )?.onChange({
-                      nativeEvent: {},
-                      target: { checked: changeChecked },
-                      changeChecked,
-                    })
-                : undefined,
-            }
-          : undefined;
-
-        const defaultDom = (
-          <ProListItem
-            key={recordKey}
-            cardProps={cardProps}
-            {...listItemProps}
-            recordKey={recordKey}
-            isEditable={isEditable || false}
-            expandable={expandableConfig}
-            expand={mergedExpandedKeys.has(itemKey)}
-            onExpand={() => onTriggerExpand(item)}
-            index={index}
-            record={item}
-            item={item}
-            itemTitleRender={itemTitleRender}
-            itemHeaderRender={itemHeaderRender}
-            rowSupportExpand={!rowExpandable || rowExpandable(item)}
-            selected={selectedKeySet.has(itemKey)}
-            checkbox={checkboxDom as React.ReactElement}
-            onRow={onRow}
-            onItem={onItem}
-          />
-        );
-
-        const renderedContent = itemRender
-          ? itemRender(item, index, defaultDom)
-          : defaultDom;
-
-        return renderedContent;
-      }}
+      renderItem={renderListItem}
     />
   );
 }

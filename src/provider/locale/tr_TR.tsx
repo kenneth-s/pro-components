@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const trTR: ProLocale = {
   moneySymbol: '₺',
+  deleteThisLine: 'Bu satırı sil',
+  copyThisLine: 'Bu satırı kopyala',
   form: {
     lightFilter: {
       more: 'Daha Fazla',
@@ -57,15 +61,19 @@ export default {
     submitText: 'Giriş Yap',
   },
   editableTable: {
+    onlyOneLineEditor: 'Aynı anda yalnızca bir satır düzenlenebilir',
+    onlyAddOneLine: 'Aynı anda yalnızca bir satır eklenebilir',
     action: {
       save: 'Kaydet',
       cancel: 'Vazgeç',
       delete: 'Sil',
-      add: 'foegje in rige gegevens ta',
+      add: 'Veri satırı ekle',
     },
   },
   switch: {
     open: 'açık',
-    close: 'kapatmak',
+    close: 'Kapalı',
   },
 };
+
+export default trTR;

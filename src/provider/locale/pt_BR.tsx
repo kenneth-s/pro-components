@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const ptBR: ProLocale = {
   moneySymbol: 'R$',
+  deleteThisLine: 'Excluir esta linha',
+  copyThisLine: 'Copiar esta linha',
   form: {
     lightFilter: {
       more: 'Mais',
@@ -57,6 +61,8 @@ export default {
     submitText: 'Entrar',
   },
   editableTable: {
+    onlyOneLineEditor: 'Apenas uma linha pode ser editada por vez',
+    onlyAddOneLine: 'Apenas uma linha pode ser adicionada por vez',
     action: {
       save: 'Salvar',
       cancel: 'Cancelar',
@@ -69,3 +75,5 @@ export default {
     close: 'fechar',
   },
 };
+
+export default ptBR;

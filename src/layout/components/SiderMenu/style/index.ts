@@ -1,4 +1,4 @@
-﻿import { Keyframes } from '@ant-design/cssinjs';
+import { Keyframes } from '@ant-design/cssinjs';
 import type { GenerateStyle, ProAliasToken } from '../../../../provider';
 import { useStyle as useAntdStyle } from '../../../../provider';
 import { proLayoutSiderVar } from './menu';
@@ -18,7 +18,105 @@ export const proLayoutTitleHide = new Keyframes('antBadgeLoadingCircle', {
   },
 }) as any;
 
+/**
+ * Sider 内部视觉常量：把散落在文件里的像素/动效/层级魔法值集中到顶部，
+ * 只保留"语义"命名，真要调参时一眼能找到改哪里。
+ *
+ * 说明：
+ * - 能用 antd 原生 token 的（如 colorBgHover / colorText）已通过 `proLayoutSiderVar`
+ *   走 CSS 变量，不在这里重复；
+ * - 这里的常量都是 **Sider 私有语义**，既不适合抽到 antd token，也不适合抽到
+ *   `--pro-layout-nav-*`，只是为了把魔法数字替换成可读的名字。
+ */
+const MENU_STACK_GAP = 12; // sider-children 内 logo/actions/menu 三块之间的纵向间距
+const SIDER_COLLAPSED_PAD_INLINE = 4; // 收起态 sider-children 水平内边距（配合 28×28 按钮居中）
+const MENU_Z_INDEX = 10; // sider 菜单区 z-index：压过相邻滚动阴影即可，不与 popup(1000+) 冲突
+/** fixed 侧栏整体层级须高于顶栏（header.ts 为 101），否则收起按钮 absolute 伸出侧栏时会被顶栏盖住 */
+const FIXED_SIDER_Z_INDEX = 105;
+
+/** Logo 块尺寸规范（与一级菜单 42px 行高对齐） */
+const LOGO = {
+  minHeight: 42,
+  paddingInline: 8,
+  paddingBlock: 8,
+  linkSize: 22, // <a>/<img>/<h1> 高度，img 的宽高、标题行高统一
+  titleMarginInlineStart: 6,
+  titleFontSize: 16,
+  titleFontWeight: 600,
+  titleLineHeight: '22px',
+  collapsedIconSize: 16,
+  collapsedIconMarginBlockEnd: 8,
+} as const;
+
+/** Actions 区（avatar/action list）尺寸规范 */
+const ACTIONS = {
+  marginBlock: 4,
+  iconSize: 16,
+  itemPadding: 6,
+  itemLineHeight: '16px',
+  avatarPaddingInline: 8,
+  avatarPaddingBlock: 8,
+  avatarFontSize: 14,
+  collapsedPaddingInline: 8,
+  collapsedMarginBlockEnd: 8,
+} as const;
+
+/** Extra 区外边距 */
+const EXTRA_MARGIN = 16;
+/** Footer 区底部内边距 */
+const FOOTER_PADDING_BLOCK_END = 0;
+
+/** 折叠态 hide-menu 按钮向 sider 外偏移量：让按钮半压在 sider 边缘上 */
+const HIDE_MENU_COLLAPSED_OFFSET = 12;
+
+/**
+ * Sider 内部 motion 规范：title 淡入 / icon 尺寸过渡统一走这套常量。
+ */
+const MOTION = {
+  titleHideDuration: '.4s',
+  titleHideTiming: 'ease',
+  iconTransition: 'font-size 0.2s ease-in-out, color 0.2s ease-in-out',
+  /** actions 收起态 icon 尺寸切换稍慢，避免"抖动"感 */
+  actionsCollapsedTransition: 'font-size 0.3s ease-in-out',
+} as const;
+
+function getSiderMenuScrollbar(): Record<string, unknown> {
+  const thumb = `var(${proLayoutSiderVar.scrollbarThumb})`;
+  const thumbHover = `var(${proLayoutSiderVar.scrollbarThumbHover})`;
+  const track = `var(${proLayoutSiderVar.scrollbarTrack})`;
+  const size = `var(${proLayoutSiderVar.scrollbarTrackThickness})`;
+  const radius = `var(${proLayoutSiderVar.scrollbarThumbRadius})`;
+
+  return {
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'transparent transparent',
+    '&:hover': {
+      scrollbarColor: `${thumb} transparent`,
+    },
+    '&::-webkit-scrollbar': {
+      width: size,
+      height: size,
+      backgroundColor: 'transparent',
+    },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: track,
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: 'transparent',
+      borderRadius: radius,
+      transition: 'background-color 0.3s ease',
+    },
+    '&:hover::-webkit-scrollbar-thumb': {
+      backgroundColor: thumb,
+    },
+    '&::-webkit-scrollbar-thumb:hover': {
+      backgroundColor: thumbHover,
+    },
+  };
+}
+
 const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
+  const siderMenuScrollbar = getSiderMenuScrollbar();
   const sv = (k: keyof typeof proLayoutSiderVar) =>
     `var(${proLayoutSiderVar[k]})`;
   return {
@@ -30,26 +128,51 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
       [`${token.antCls}-layout-sider${token.componentCls}${token.antCls}-layout-sider-collapsed`]:
         {
           [`& ${token.antCls}-layout-sider-children`]: {
-            paddingInline: 4,
-            alignItems: 'center',
+            paddingInline: 0,
+            alignItems: 'stretch',
+          },
+          [`& ${token.componentCls}-menu-scroll`]: {
+            scrollbarGutter: 'stable both-edges',
+            marginInlineEnd: 0,
+            paddingInlineEnd: 0,
+          },
+          [`& ${token.componentCls}-logo`]: {
+            paddingInline: SIDER_COLLAPSED_PAD_INLINE,
+            justifyContent: 'center',
+          },
+          [`& ${token.componentCls}-actions`]: {
+            paddingInline: SIDER_COLLAPSED_PAD_INLINE,
+            justifyContent: 'center',
           },
         },
       [token.componentCls]: {
         position: 'relative',
         boxSizing: 'border-box',
-        '&-menu': {
-          position: 'relative',
-          zIndex: 10,
+        '&-menu-scroll': {
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
+          overflowX: 'hidden',
+          marginInlineEnd: `calc(-1 * ${sv('paddingInlineMenu')})`,
+          paddingInlineEnd: sv('paddingInlineMenu'),
+          ...siderMenuScrollbar,
+          '@media (pointer: coarse)': {
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
+          },
+        },
+        '&-menu': {
+          position: 'relative',
+          zIndex: MENU_Z_INDEX,
+          flex: 1,
+          minHeight: 0,
         },
         [`& ${token.antCls}-layout-sider-children`]: {
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          gap: 12,
+          gap: MENU_STACK_GAP,
           paddingInline: sv('paddingInlineMenu'),
           paddingBlock: sv('paddingBlockMenu'),
           borderInlineEnd: 'none',
@@ -60,9 +183,9 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingInline: 8,
-          paddingBlock: 8,
-          minHeight: 42,
+          paddingInline: LOGO.paddingInline,
+          paddingBlock: LOGO.paddingBlock,
+          minHeight: LOGO.minHeight,
           color: sv('colorText'),
           cursor: 'pointer',
           borderBlockEnd: 'none',
@@ -70,37 +193,37 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: 22,
-            fontSize: 22,
+            minHeight: LOGO.linkSize,
+            fontSize: LOGO.linkSize,
             '> img': {
-              display: 'inline-block',
-              height: 22,
-              verticalAlign: 'middle',
+              display: 'block',
+              height: LOGO.linkSize,
             },
             '> h1': {
-              display: 'inline-block',
-              height: 22,
+              display: 'flex',
+              alignItems: 'center',
+              height: LOGO.linkSize,
               marginBlock: 0,
               marginInlineEnd: 0,
-              marginInlineStart: 6,
+              marginInlineStart: LOGO.titleMarginInlineStart,
               color: sv('colorTextTitle'),
               animationName: proLayoutTitleHide,
-              animationDuration: '.4s',
-              animationTimingFunction: 'ease',
-              fontWeight: 600,
-              fontSize: 16,
-              lineHeight: '22px',
-              verticalAlign: 'middle',
+              animationDuration: MOTION.titleHideDuration,
+              animationTimingFunction: MOTION.titleHideTiming,
+              fontWeight: LOGO.titleFontWeight,
+              fontSize: LOGO.titleFontSize,
+              lineHeight: LOGO.titleLineHeight,
             },
           },
           '&-collapsed': {
             flexDirection: 'column-reverse',
             margin: 0,
-            padding: 12,
+            /** 收起态 logo 不再加 padding，与菜单 28×28 正方形按钮在横向对齐 */
+            padding: 0,
             [`${token.proComponentsCls}-layout-apps-icon`]: {
-              marginBlockEnd: 8,
-              fontSize: 16,
-              transition: 'font-size 0.2s ease-in-out,color 0.2s ease-in-out',
+              marginBlockEnd: LOGO.collapsedIconMarginBlockEnd,
+              fontSize: LOGO.collapsedIconSize,
+              transition: MOTION.iconTransition,
             },
           },
         },
@@ -108,27 +231,27 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBlock: 4,
+          marginBlock: ACTIONS.marginBlock,
           marginInline: 0,
           color: sv('colorText'),
           '&-collapsed': {
             flexDirection: 'column-reverse',
             paddingBlock: 0,
-            paddingInline: 8,
-            fontSize: 16,
-            transition: 'font-size 0.3s ease-in-out',
+            paddingInline: ACTIONS.collapsedPaddingInline,
+            fontSize: ACTIONS.iconSize,
+            transition: MOTION.actionsCollapsedTransition,
           },
           '&-list': {
             color: sv('colorTextSecondary'),
             '&-collapsed': {
-              marginBlockEnd: 8,
+              marginBlockEnd: ACTIONS.collapsedMarginBlockEnd,
               animationName: 'none',
             },
             '&-item': {
-              paddingInline: 6,
-              paddingBlock: 6,
-              lineHeight: '16px',
-              fontSize: 16,
+              paddingInline: ACTIONS.itemPadding,
+              paddingBlock: ACTIONS.itemPadding,
+              lineHeight: ACTIONS.itemLineHeight,
+              fontSize: ACTIONS.iconSize,
               cursor: 'pointer',
               borderRadius: sv('borderRadius'),
               '&:hover': {
@@ -137,12 +260,12 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
             },
           },
           '&-avatar': {
-            fontSize: 14,
-            paddingInline: 8,
-            paddingBlock: 8,
+            fontSize: ACTIONS.avatarFontSize,
+            paddingInline: ACTIONS.avatarPaddingInline,
+            paddingBlock: ACTIONS.avatarPaddingBlock,
             display: 'flex',
             alignItems: 'center',
-            gap: 'var(--ant-margin-xs, 8px)',
+            gap: `${token.marginXS}px`,
             borderRadius: sv('borderRadius'),
             '& *': {
               cursor: 'pointer',
@@ -153,16 +276,16 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
           },
         },
         '&-hide-menu-collapsed': {
-          insetInlineStart: `-${token.proLayoutCollapsedWidth - 12}px`,
+          insetInlineStart: `-${token.proLayoutCollapsedWidth - HIDE_MENU_COLLAPSED_OFFSET}px`,
           position: 'absolute',
         },
 
         '&-extra': {
-          marginBlockEnd: 16,
+          marginBlockEnd: EXTRA_MARGIN,
           marginBlock: 0,
-          marginInline: 16,
+          marginInline: EXTRA_MARGIN,
           '&-no-logo': {
-            marginBlockStart: 16,
+            marginBlockStart: EXTRA_MARGIN,
           },
         },
         '&-links': {
@@ -178,23 +301,19 @@ const genSiderMenuStyle: GenerateStyle<SiderMenuToken> = (token) => {
         },
         '&-footer': {
           color: sv('colorTextSecondary'),
-          paddingBlockEnd: 16,
+          paddingBlockEnd: FOOTER_PADDING_BLOCK_END,
           fontSize: sv('fontSize'),
           animationName: proLayoutTitleHide,
-          animationDuration: '.4s',
-          animationTimingFunction: 'ease',
+          animationDuration: MOTION.titleHideDuration,
+          animationTimingFunction: MOTION.titleHideTiming,
         },
       },
       [`${token.componentCls}${token.componentCls}-fixed`]: {
         position: 'fixed',
         insetBlockStart: 0,
         insetInlineStart: 0,
-        zIndex: '100',
+        zIndex: FIXED_SIDER_Z_INDEX,
         height: '100%',
-        '&-mix': {
-          height: 'calc(100% - 56px)',
-          insetBlockStart: '56px',
-        },
       },
     },
   };

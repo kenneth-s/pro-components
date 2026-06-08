@@ -174,6 +174,8 @@ const genProCardStyle: GenerateStyle<ProCardToken> = (token) => {
       },
 
       [`${componentCls}-title`]: {
+        display: 'flex',
+        alignItems: 'center',
         color: token.colorText,
         fontWeight: token.fontWeightStrong,
         fontSize: token.fontSizeLG,
@@ -191,10 +193,21 @@ const genProCardStyle: GenerateStyle<ProCardToken> = (token) => {
       },
 
       [`${componentCls}-collapsible-icon`]: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginInlineEnd: token.marginXS,
-        color: token.colorIconHover,
-        ':hover': {
-          color: token.colorPrimaryHover,
+        padding: token.paddingXXS,
+        color: token.colorTextSecondary,
+        lineHeight: 1,
+        borderRadius: token.borderRadiusSM,
+        transition: `color ${token.motionDurationMid}, background-color ${token.motionDurationMid}`,
+        '&:hover': {
+          color: token.colorText,
+          backgroundColor: token.colorBgTextHover,
+        },
+        '&:active': {
+          backgroundColor: token.colorBgTextActive,
         },
 
         '& svg': {
@@ -312,9 +325,11 @@ const genProCardStyle: GenerateStyle<ProCardToken> = (token) => {
 
 const GRID_COLUMNS = 24;
 
-const genColStyle = (index: number, token: ProCardToken) => {
-  const { componentCls } = token;
-
+/**
+ * 生成单列的栅格样式。仅依赖 componentCls（前缀类名），不依赖任何 token 数值，
+ * 因此入参从完整 token 简化为字符串，函数本身可被缓存或在编译期推导。
+ */
+const genColStyle = (index: number, componentCls: string) => {
   if (index === 0) {
     return {
       [`${componentCls}-col-0`]: {
@@ -331,10 +346,19 @@ const genColStyle = (index: number, token: ProCardToken) => {
   };
 };
 
-const genGridStyle: GenerateStyle<ProCardToken> = (token) => {
-  return Array(GRID_COLUMNS + 1)
-    .fill(1)
-    .map((_, index) => genColStyle(index, token));
+/**
+ * 25 个列宽规则与 token 数值无关，按 prefixCls 缓存，避免每个 useStyle
+ * 实例重复构造数组与对象。绝大多数应用 prefixCls 唯一，命中缓存稳定。
+ */
+const gridStyleCache = new Map<string, ReturnType<typeof genColStyle>[]>();
+const getGridStyleByCls = (componentCls: string) => {
+  const cached = gridStyleCache.get(componentCls);
+  if (cached) return cached;
+  const result = Array.from({ length: GRID_COLUMNS + 1 }, (_, index) =>
+    genColStyle(index, componentCls),
+  );
+  gridStyleCache.set(componentCls, result);
+  return result;
 };
 
 export default function useStyle(prefixCls: string) {
@@ -344,6 +368,9 @@ export default function useStyle(prefixCls: string) {
       componentCls: `.${prefixCls}`,
     };
 
-    return [genProCardStyle(proCardToken), genGridStyle(proCardToken)];
+    return [
+      genProCardStyle(proCardToken),
+      getGridStyleByCls(proCardToken.componentCls),
+    ];
   });
 }

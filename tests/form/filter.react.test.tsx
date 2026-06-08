@@ -1,8 +1,6 @@
 import {
   LightFilter,
-  ProFormCascader,
   ProFormText,
-  ProFormTreeSelect,
   QueryFilter,
 } from '@ant-design/pro-components';
 import { _el, _rs } from '@rc-component/resize-observer/es/utils/observerUtil';
@@ -21,14 +19,14 @@ afterEach(() => {
   cleanup();
 });
 
-describe('✔️ ProFormLightFilter', () => {
+describe('✔️ LightFilter', () => {
   afterEach(() => {
     cleanup();
   });
   it(' ✔️ clear input values', async () => {
     const html = render(
       <LightFilter>
-        <ProFormText
+        <LightFilter.input
           name="name1"
           label="名称"
           fieldProps={{
@@ -63,12 +61,21 @@ describe('✔️ ProFormLightFilter', () => {
       (await html.findAllByText('确 认')).at(0)?.click();
     });
 
-    const dom = await html.findAllByTitle('qixian');
+    // LightFilter 收起后值在 FieldLabel 上展示（含 title），不再依赖可见 input 的 value
+    await waitFor(() => {
+      expect(html.getByTitle('qixian')).toBeInTheDocument();
+    });
 
-    expect(dom.length > 0).toBeTruthy();
+    // 点击 FieldLabel 触发 Popover 展开，然后点击清除
+    await act(async () => {
+      html.baseElement
+        .querySelector('.ant-pro-core-field-label')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    await waitFor(() => html.findAllByText('清除'));
 
     await act(async () => {
-      (await html.findAllByTitle('qixian')).at(0)?.click();
       (await html.findAllByText('清除')).at(0)?.parentElement?.click();
     });
 
@@ -128,7 +135,7 @@ describe('✔️ ProFormLightFilter', () => {
   it(' ✔️ lightFilter resize', async () => {
     const html = render(
       <LightFilter>
-        <ProFormTreeSelect
+        <LightFilter.treeSelect
           fieldProps={{
             fieldNames: {
               label: 'title',
@@ -195,7 +202,7 @@ describe('✔️ ProFormLightFilter', () => {
   it(' ✔️ lightFilter ProFormCascader support label', async () => {
     const html = render(
       <LightFilter>
-        <ProFormCascader
+        <LightFilter.cascader
           request={async () => [
             {
               value: 'zhejiang',

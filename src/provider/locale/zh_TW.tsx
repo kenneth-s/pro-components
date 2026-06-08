@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const zhTW: ProLocale = {
   moneySymbol: 'NT$',
   deleteThisLine: '刪除此项',
   copyThisLine: '複製此项',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: '只能同時編輯一行',
+    onlyAddOneLine: '只能同時新增一行',
     action: {
       save: '保存',
       cancel: '取消',
@@ -72,3 +75,5 @@ export default {
     close: '關閉',
   },
 };
+
+export default zhTW;

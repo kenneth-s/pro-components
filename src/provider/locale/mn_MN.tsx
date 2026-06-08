@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const mnMN: ProLocale = {
   moneySymbol: '₮',
+  deleteThisLine: 'Энэ мөрийг устгах',
+  copyThisLine: 'Энэ мөрийг хуулах',
   form: {
     lightFilter: {
       more: 'Илүү',
@@ -57,6 +61,8 @@ export default {
     submitText: 'Нэвтрэх',
   },
   editableTable: {
+    onlyOneLineEditor: 'Зэрэгцээд зөвхөн нэг мөр засварлах боломжтой',
+    onlyAddOneLine: 'Зэрэгцээд зөвхөн нэг мөр нэмэх боломжтой',
     action: {
       save: 'Хадгалах',
       cancel: 'Цуцлах',
@@ -69,3 +75,5 @@ export default {
     close: 'Хаах',
   },
 };
+
+export default mnMN;

@@ -1,4 +1,6 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const svSE: ProLocale = {
   moneySymbol: 'SEK',
   deleteThisLine: 'Radera denna rad',
   copyThisLine: 'Kopiera denna rad',
@@ -60,6 +62,7 @@ export default {
   },
   editableTable: {
     onlyOneLineEditor: 'Endast en rad kan redigeras åt gången',
+    onlyAddOneLine: 'Endast en rad kan läggas till åt gången',
     action: {
       save: 'Spara',
       cancel: 'Avbryt',
@@ -72,3 +75,5 @@ export default {
     close: 'Stäng',
   },
 };
+
+export default svSE;

@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const idID: ProLocale = {
   moneySymbol: 'RP',
+  deleteThisLine: 'Hapus baris ini',
+  copyThisLine: 'Salin baris ini',
   form: {
     lightFilter: {
       more: 'Lebih',
@@ -57,6 +61,8 @@ export default {
     submitText: 'Login',
   },
   editableTable: {
+    onlyOneLineEditor: 'Hanya satu baris yang dapat diedit sekaligus',
+    onlyAddOneLine: 'Hanya satu baris yang dapat ditambahkan sekaligus',
     action: {
       save: 'simpan',
       cancel: 'batal',
@@ -69,3 +75,5 @@ export default {
     close: 'tutup',
   },
 };
+
+export default idID;

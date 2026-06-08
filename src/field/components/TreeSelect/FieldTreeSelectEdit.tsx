@@ -1,4 +1,4 @@
-﻿import type { TreeSelectProps } from 'antd';
+﻿import type { GetRef, TreeSelectProps } from 'antd';
 import { Spin, TreeSelect } from 'antd';
 import { clsx } from 'clsx';
 import React from 'react';
@@ -19,16 +19,15 @@ export interface FieldTreeSelectEditProps {
     props: ProFieldFCRenderProps,
     dom: React.JSX.Element,
   ) => React.JSX.Element;
-  light?: boolean;
   label?: React.ReactNode;
   variant?: React.ComponentProps<typeof FieldLabel>['variant'];
   fieldProps: TreeSelectFieldProps;
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  treeSelectRef: React.RefObject<any>;
+  treeSelectRef: React.RefObject<GetRef<typeof TreeSelect>>;
   intl: IntlType;
   loading: boolean;
-  options: any[];
+  options: NonNullable<TreeSelectProps['treeData']>;
   fetchData: (keyWord?: string) => void;
   fetchDataOnSearch?: boolean;
   hasRequest: boolean;
@@ -55,9 +54,6 @@ export function FieldTreeSelectEdit({
   text,
   mode,
   formItemRender,
-  light,
-  label,
-  variant,
   fieldProps,
   open,
   setOpen,
@@ -78,10 +74,6 @@ export function FieldTreeSelectEdit({
   onBlur,
   layoutClassName,
 }: FieldTreeSelectEditProps) {
-  const valuesLength = Array.isArray(fieldProps?.value)
-    ? fieldProps?.value?.length
-    : 0;
-
   let dom: React.ReactNode = (
     <Spin spinning={loading}>
       <TreeSelect<string | undefined>
@@ -91,25 +83,10 @@ export function FieldTreeSelectEdit({
           setOpen(isOpen);
         }}
         ref={treeSelectRef}
-        popupMatchSelectWidth={!light}
+        popupMatchSelectWidth
         placeholder={intl.getMessage('tableForm.selectPlaceholder', '请选择')}
-        tagRender={
-          light
-            ? (item) => {
-                if (valuesLength < 2) return <>{item.label}</>;
-                const itemIndex = fieldProps?.value?.findIndex(
-                  (v: any) => v === item.value || v.value === item.value,
-                );
-                return (
-                  <>
-                    {item.label} {itemIndex < valuesLength - 1 ? ',' : ''}
-                  </>
-                );
-              }
-            : undefined
-        }
         {...fieldProps}
-        treeData={options as TreeSelectProps['treeData']}
+        treeData={options}
         showSearch={
           showSearch
             ? {
@@ -151,37 +128,15 @@ export function FieldTreeSelectEdit({
   if (formItemRender) {
     dom = formItemRender(
       text,
-      { mode, ...(fieldProps as any), options, loading } as ProFieldFCRenderProps,
+      {
+        mode,
+        ...(fieldProps as any),
+        options,
+        loading,
+      } as ProFieldFCRenderProps,
       dom as React.JSX.Element,
     );
   }
 
-  if (light) {
-    const { disabled, placeholder } = fieldProps;
-    const notEmpty = !!fieldProps.value && fieldProps.value?.length !== 0;
-
-    return (
-      <FieldLabel
-        label={label}
-        disabled={disabled}
-        placeholder={placeholder}
-        onClick={() => {
-          setOpen(true);
-          fieldProps?.onOpenChange?.(true);
-        }}
-        variant={variant}
-        value={notEmpty || open ? dom : null}
-        style={
-          notEmpty
-            ? {
-                paddingInlineEnd: 0,
-              }
-            : undefined
-        }
-        allowClear={false}
-        downIcon={false}
-      />
-    );
-  }
   return dom;
 }

@@ -16,6 +16,7 @@ import isEmpty from 'lodash-es/isEmpty';
 import isEqual from 'lodash-es/isEqual';
 import React, {
   Key,
+  useCallback,
   useContext,
   useEffect,
   useImperativeHandle,
@@ -263,28 +264,19 @@ function useAlertDom<T extends Record<string, any>>({
   tableAlertOptionRender: ProTableProps<T, any, any>['tableAlertOptionRender'];
   tableAlertRender: ProTableProps<T, any, any>['tableAlertRender'];
 }): React.ReactNode {
-  return useMemo(() => {
-    if (propsRowSelection === false) {
-      return null;
-    }
-    return (
-      <Alert<T>
-        selectedRowKeys={selectedRowKeys!}
-        selectedRows={selectedRows}
-        onCleanSelected={onCleanSelected}
-        alertOptionRender={tableAlertOptionRender}
-        alertInfoRender={tableAlertRender}
-        alwaysShowAlert={propsRowSelection?.alwaysShowAlert}
-      />
-    );
-  }, [
-    onCleanSelected,
-    propsRowSelection,
-    selectedRowKeys,
-    selectedRows,
-    tableAlertOptionRender,
-    tableAlertRender,
-  ]);
+  if (propsRowSelection === false) {
+    return null;
+  }
+  return (
+    <Alert<T>
+      selectedRowKeys={selectedRowKeys!}
+      selectedRows={selectedRows}
+      onCleanSelected={onCleanSelected}
+      alertOptionRender={tableAlertOptionRender}
+      alertInfoRender={tableAlertRender}
+      alwaysShowAlert={propsRowSelection?.alwaysShowAlert}
+    />
+  );
 }
 
 const emptyObj = {} as Record<string, any>;
@@ -340,7 +332,11 @@ const ProTable = <
   } = props;
   const { wrapSSR, hashId } = useStyle(props.defaultClassName);
 
-  const className = clsx(defaultClassName, propsClassName, hashId);
+  const isFillHeight = (rest as any).scroll?.y === 'fill';
+
+  const className = clsx(defaultClassName, propsClassName, hashId, {
+    [`${defaultClassName}-fill-height`]: isFillHeight,
+  });
 
   /** 通用的来操作子节点的工具类 */
   const actionRef = useRef<ActionType>();
@@ -424,6 +420,11 @@ const ProTable = <
 
   const counter = useContext(TableContext);
 
+  // 设置 name 到 store 中，里面用了 ref ，所以不用担心直接 set
+  // 注意：必须在 render 阶段同步 set，否则首次渲染时 cellRenderToFromItem 拿不到 prefixName，
+  // 会走到非 name 分支，导致 form 字段路径错乱（详见 protable-editable-onsave-record 测试）
+  counter.setPrefixName(props.name);
+
   // ============================ useFetchData ============================
   const fetchData = useMemo(() => {
     if (!request) return undefined;
@@ -442,7 +443,7 @@ const ProTable = <
       );
       return response as RequestData<T>;
     };
-  }, [formSearch, params, proFilter, proSort, request]);
+  }, [params, proFilter, proSort, request]);
 
   const action = useFetchData(fetchData, defaultData, {
     pageInfo: propsPagination === false ? false : fetchPagination,
@@ -474,28 +475,38 @@ const ProTable = <
   });
   // ============================ END ============================
 
-  /** 聚焦的时候重新请求数据，这样可以保证数据都是最新的。 */
-  useEffect(() => {
-    // 手动模式和 request 为空都不生效
+  /**
+   * 聚焦的时候重新请求数据，这样可以保证数据都是最新的。
+   *
+   * 旧实现的两个闭包陷阱：
+   *  1. effect 依赖为 `[]`，但回调里引用了 `props.manualRequest / props.request /
+   *     revalidateOnFocus / props.form?.ignoreRules / action.reload` 五个会变的值。
+   *     一旦用户运行时把 `revalidateOnFocus` 从 false 改成 true，由于 listener
+   *     是首次 render 绑定的，永远走旧的 if 拒绝；
+   *  2. `action.reload` 是 useFetchData 每次 render 重建的闭包，listener 抓到的
+   *     永远是首次 render 的旧 reload，引用旧的 pageInfo/formSearch。
+   *
+   * 修复策略：把判定条件 + reload 调用都包到 useRefFunction 里 —— ref function
+   * 引用稳定但内部读取永远是最新值。effect 依赖保持 `[]`，listener 也只绑/解绑
+   * 一次，不需要重复 add/remove。
+   */
+  const onVisibilityChange = useRefFunction(() => {
+    if (document.visibilityState !== 'visible') return;
     if (
       props.manualRequest ||
       !props.request ||
       !revalidateOnFocus ||
       props.form?.ignoreRules
-    )
+    ) {
       return;
-
-    // 聚焦时重新请求事件
-    const visibilitychange = () => {
-      if (document.visibilityState === 'visible') {
-        action.reload();
-      }
-    };
-
-    document.addEventListener('visibilitychange', visibilitychange);
+    }
+    action.reload();
+  });
+  useEffect(() => {
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () =>
-      document.removeEventListener('visibilitychange', visibilitychange);
-  }, []);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [onVisibilityChange]);
 
   /** SelectedRowKeys受控处理selectRows */
   const preserveRecordsRef = React.useRef(new Map<any, T>());
@@ -503,16 +514,14 @@ const ProTable = <
   // ============================ RowKey ============================
   const getRowKey = useRowKey<T>({ rowKey, name: props.name });
 
-  useMemo(() => {
-    if (action.dataSource?.length) {
-      const keys = action.dataSource.map((data) => {
-        const dataRowKey = getRowKey(data, -1);
-        preserveRecordsRef.current.set(dataRowKey, data);
-        return dataRowKey;
-      });
-      return keys;
+  useEffect(() => {
+    if (!action.dataSource?.length) {
+      return;
     }
-    return [];
+    action.dataSource.forEach((data) => {
+      const dataRowKey = getRowKey(data, -1);
+      preserveRecordsRef.current.set(dataRowKey, data);
+    });
   }, [action.dataSource, getRowKey]);
 
   /** 页面编辑的计算 */
@@ -552,9 +561,6 @@ const ProTable = <
     }
   }, [params]);
 
-  // 设置 name 到 store 中，里面用了 ref ，所以不用担心直接 set
-  counter.setPrefixName(props.name);
-
   // 设置 columnsState 到 store 中（仅在受控 value 时同步，避免在仅传 onChange 时用 {} 覆盖默认 state 导致多余 onChange）
   useEffect(() => {
     if (columnsState?.value !== undefined) {
@@ -578,6 +584,7 @@ const ProTable = <
   const editableUtils = useEditableArray<any>({
     ...props.editable,
     tableName: props.name,
+    dateFormatter: props.editable?.dateFormatter ?? props.dateFormatter,
     getRowKey,
     childrenColumnName: props.expandable?.childrenColumnName || 'children',
     dataSource: action.dataSource || [],
@@ -670,7 +677,7 @@ const ProTable = <
     counter?.columnsMap,
     columnEmptyText,
     type,
-    editableUtils.editableKeys && editableUtils.editableKeys.join(','),
+    editableUtils.editableKeys?.join(','),
     proFilter,
     proSort,
   ]);
@@ -712,18 +719,26 @@ const ProTable = <
   ]);
 
   /** 行选择相关的问题 */
-  const rowSelection: TableRowSelection = {
-    selectedRowKeys,
-    ...propsRowSelection,
-    onChange: (keys, rows, info) => {
+  const handleRowSelectionChange = useCallback(
+    (keys: React.Key[], rows: T[], info: any) => {
       if (propsRowSelection && propsRowSelection.onChange) {
-        propsRowSelection.onChange(keys, rows, info);
+        propsRowSelection.onChange(keys as any, rows, info);
       }
-      setSelectedRowKeys(keys);
+      setSelectedRowKeys(keys as any);
     },
-  };
+    [propsRowSelection, setSelectedRowKeys],
+  );
 
-  /** 是不是 LightFilter, LightFilter 有一些特殊的处理 */
+  const rowSelection = useMemo((): TableRowSelection | undefined => {
+    if (propsRowSelection === false) return undefined;
+    return {
+      selectedRowKeys,
+      ...propsRowSelection,
+      onChange: handleRowSelectionChange,
+    };
+  }, [handleRowSelectionChange, propsRowSelection, selectedRowKeys]);
+
+  /** LightFilter（轻量筛选）时工具栏把 search 插到左侧 */
   const isLightFilter: boolean =
     search !== false && search?.filterType === 'light';
 
@@ -869,27 +884,24 @@ const ProTable = <
     return _columns.filter((column) => !!column.filters);
   }, [columns]);
 
-  const onSortChange = (sortConfig?: Record<string, SortOrder>) => {
-    if (isEqual(sortConfig, proSort)) return;
-    setProSort(sortConfig ?? {});
-  };
+  const onSortChange = useCallback(
+    (sortConfig?: Record<string, SortOrder>) => {
+      if (isEqual(sortConfig, proSort)) return;
+      setProSort(sortConfig ?? {});
+    },
+    [proSort],
+  );
 
-  const onFilterChange = (filterConfig: Record<string, FilterValue>) => {
-    if (isEqual(filterConfig, proFilter)) return;
-    setProFilter(filterConfig ?? {});
-  };
+  const onFilterChange = useCallback(
+    (filterConfig: Record<string, FilterValue>) => {
+      if (isEqual(filterConfig, proFilter)) return;
+      setProFilter(filterConfig ?? {});
+    },
+    [proFilter],
+  );
 
-  const getTableProps = () => ({
-    ...rest,
-    size: counter.tableSize,
-    rowSelection: propsRowSelection === false ? undefined : rowSelection,
-    className: tableClassName,
-    style: tableStyle,
-    columns,
-    loading: action.loading,
-    dataSource: mergedDataSource,
-    pagination,
-    onChange: (
+  const handleTableChange = useCallback(
+    (
       changePagination: TablePaginationConfig,
       filters: Record<string, AntFilterValue | null>,
       sorter: SorterResult<T> | SorterResult<T>[],
@@ -903,11 +915,57 @@ const ProTable = <
       const serverSorter = getServerSorterResult(sorter);
       onSortChange(omitUndefined(serverSorter));
     },
-  });
+    [onFilterChange, onSortChange, rest.onChange, useFilterColumns],
+  );
 
-  const notNeedCardDom = search === false && !headerTitle && !toolBarRender;
+  /** 拆分 memo：仅当对应维度变化时更新引用；合并结果仍受 `...rest` 引用变化影响（父组件每次 render 常为新的 rest 对象） */
+  const tableLayoutProps = useMemo(
+    () => ({
+      size: counter.tableSize,
+      className: tableClassName,
+      style: tableStyle,
+    }),
+    [counter.tableSize, tableClassName, tableStyle],
+  );
 
-  const baseTableDom = (
+  const tableDataProps = useMemo(
+    () => ({
+      loading: action.loading,
+      dataSource: mergedDataSource,
+      pagination,
+    }),
+    [action.loading, mergedDataSource, pagination],
+  );
+
+  const tableColumnInteractionProps = useMemo(
+    () => ({
+      columns,
+      rowSelection,
+      onChange: handleTableChange,
+    }),
+    [columns, rowSelection, handleTableChange],
+  );
+
+  const resolvedRest = useMemo(() => {
+    if (!isFillHeight) return rest;
+    const { scroll, ...otherRest } = rest as any;
+    const { y: _y, ...restScroll } = scroll || {};
+    return { ...otherRest, scroll: { ...restScroll, y: '100%' } };
+  }, [rest, isFillHeight]);
+
+  const mergedTableProps = useMemo(
+    () => ({
+      ...resolvedRest,
+      ...tableLayoutProps,
+      ...tableDataProps,
+      ...tableColumnInteractionProps,
+    }),
+    [resolvedRest, tableLayoutProps, tableDataProps, tableColumnInteractionProps],
+  );
+
+  const notNeedCardDom = search === false && hideToolbar;
+
+  const getBaseTableDom = () => (
     <GridContext.Provider
       value={{
         grid: false,
@@ -915,19 +973,13 @@ const ProTable = <
         rowProps: undefined,
       }}
     >
-      <Table<T> {...getTableProps()} rowKey={rowKey} ref={antTableRef} />
+      <Table<T> {...mergedTableProps} rowKey={rowKey} ref={antTableRef} />
     </GridContext.Provider>
   );
 
   const tableDom = props.tableViewRender
-    ? props.tableViewRender(
-        {
-          ...getTableProps(),
-          rowSelection: propsRowSelection !== false ? rowSelection : undefined,
-        },
-        baseTableDom,
-      )
-    : baseTableDom;
+    ? props.tableViewRender({ ...mergedTableProps }, getBaseTableDom)
+    : getBaseTableDom();
 
   const tableContentDom =
     props.editable && !isEditorTable ? (
@@ -973,7 +1025,7 @@ const ProTable = <
     return useCardForTable || useCardForList;
   }, [cardProps, props.name, type, notNeedCardDom]);
 
-  const resolvedCardProps = cardProps === false ? {} : cardProps ?? {};
+  const resolvedCardProps = cardProps === false ? {} : (cardProps ?? {});
 
   const tableAreaDom = useCard ? (
     <ProCard

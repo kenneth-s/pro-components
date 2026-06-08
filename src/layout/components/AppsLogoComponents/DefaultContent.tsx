@@ -11,23 +11,34 @@ export const DefaultContent: React.FC<{
 }> = (props) => {
   const { appList, baseClassName, hashId, itemClick } = props;
   return (
-    <div className={clsx(`${baseClassName}-content`, hashId)}>
-      <ul className={clsx(`${baseClassName}-content-list`, hashId)}>
+    <div
+      className={clsx(`${baseClassName}-content`, hashId)}
+      data-testid="pro-layout-apps-logo-content"
+    >
+      <ul
+        className={clsx(`${baseClassName}-content-list`, hashId)}
+        data-testid="pro-layout-apps-logo-content-list"
+      >
         {appList?.map((app, index) => {
+          const itemKey = (typeof app.title === 'string' && app.title) || index;
           if (app?.children?.length) {
+            /** 分组节点用 `<li role="presentation">`，保持 `<ul>` 只直含 `<li>` 的语义 */
             return (
-              <div
-                key={index}
+              <li
+                key={itemKey}
+                role="presentation"
                 className={clsx(
                   `${baseClassName}-content-list-item-group`,
                   hashId,
                 )}
+                data-testid="pro-layout-apps-logo-content-list-item-group"
               >
                 <div
                   className={clsx(
                     `${baseClassName}-content-list-item-group-title`,
                     hashId,
                   )}
+                  data-testid="pro-layout-apps-logo-content-list-item-group-title"
                 >
                   {app.title}
                 </div>
@@ -37,21 +48,25 @@ export const DefaultContent: React.FC<{
                   appList={app?.children}
                   baseClassName={baseClassName}
                 />
-              </div>
+              </li>
             );
           }
+          const hasClick = !!itemClick;
           return (
             <li
-              key={index}
+              key={itemKey}
               className={clsx(`${baseClassName}-content-list-item`, hashId)}
+              data-testid="pro-layout-apps-logo-content-list-item"
               onClick={(e) => {
                 e.stopPropagation();
                 itemClick?.(app);
               }}
             >
               <a
-                href={itemClick ? undefined : app.url}
-                target={app.target}
+                href={hasClick ? undefined : app.url}
+                target={hasClick ? undefined : app.target}
+                role={hasClick ? 'button' : undefined}
+                tabIndex={hasClick ? 0 : undefined}
                 rel="noreferrer"
               >
                 {defaultRenderLogo(app.icon)}

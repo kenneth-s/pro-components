@@ -1,20 +1,9 @@
-import {
-  LightFilter,
-  ProFormDatePicker,
-  ProFormDateQuarterRangePicker,
-  ProFormDateRangePicker,
-  ProFormDateTimePicker,
-  ProFormDateTimeRangePicker,
-  ProFormDateWeekRangePicker,
-  ProFormDateYearRangePicker,
-  ProFormDigitRange,
-  ProFormSelect,
-  ProFormSlider,
-  ProFormText,
-  ProFormTimePicker,
-} from '@ant-design/pro-components';
+import { LightFilter, ProFormText } from '@ant-design/pro-components';
 import { fireEvent, render, waitFor } from '@testing-library/react';
+import { ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
+import zhCn from 'dayjs/locale/zh-cn';
 import advancedFormat from 'dayjs/plugin/advancedFormat';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import { describe, expect, it, vi } from 'vitest';
@@ -24,10 +13,25 @@ dayjs.extend(advancedFormat);
 dayjs.extend(weekOfYear);
 
 describe('LightFilter', () => {
-  it(' 🪕 should render basic structure', async () => {
+  it(' 🪕 should not use light field label until using LightFilter field helpers', async () => {
     const { container } = render(
       <LightFilter>
         <ProFormText name="name1" label="名称" />
+      </LightFilter>,
+    );
+
+    await waitFor(() => {
+      expect(
+        container.querySelector('.ant-pro-form-light-filter'),
+      ).toBeTruthy();
+    });
+    expect(container.querySelector('.ant-pro-core-field-label')).toBeFalsy();
+  });
+
+  it(' 🪕 should render basic structure', async () => {
+    const { container } = render(
+      <LightFilter>
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -55,7 +59,7 @@ describe('LightFilter', () => {
         }}
         onValuesChange={onValuesChange}
       >
-        <ProFormText name="name1" label="名称" />
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -78,7 +82,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange} variant="outlined">
-        <ProFormText name="name1" label="名称" />
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -100,7 +104,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange} placement="topLeft">
-        <ProFormText name="name1" label="名称" />
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -121,7 +125,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormSelect
+        <LightFilter.select
           name="name1"
           label="名称"
           valueEnum={{
@@ -151,7 +155,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormDatePicker name="name1" label="名称" />
+        <LightFilter.date name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -174,7 +178,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormDateRangePicker name="name1" label="名称" />
+        <LightFilter.dateRange name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -197,7 +201,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormDateTimePicker name="name1" label="名称" />
+        <LightFilter.dateTime name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -220,7 +224,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormTimePicker name="name1" label="名称" />
+        <LightFilter.time name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -243,7 +247,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormSlider name="name1" label="名称" />
+        <LightFilter.slider name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -266,8 +270,8 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange} collapse>
-        <ProFormText name="name1" label="名称" />
-        <ProFormText name="name2" label="名称2" />
+        <LightFilter.input name="name1" label="名称" />
+        <LightFilter.input name="name2" label="名称2" />
       </LightFilter>,
     );
 
@@ -297,8 +301,8 @@ describe('LightFilter', () => {
         collapse
         collapseLabel="更多筛选"
       >
-        <ProFormText name="name1" label="名称" />
-        <ProFormText name="name2" label="名称2" />
+        <LightFilter.input name="name1" label="名称" />
+        <LightFilter.input name="name2" label="名称2" />
       </LightFilter>,
     );
 
@@ -321,8 +325,8 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormText name="name1" label="名称" />
-        <ProFormText name="name2" label="名称2" secondary />
+        <LightFilter.input name="name1" label="名称" />
+        <LightFilter.input name="name2" label="名称2" secondary />
       </LightFilter>,
     );
 
@@ -342,7 +346,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onValuesChange={onValuesChange}>
-        <ProFormText name="name1" label="名称" />
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -360,60 +364,74 @@ describe('LightFilter', () => {
   });
 
   it(' 🪕 should format date range labels by default', async () => {
-    const { container } = render(
-      <LightFilter
-        initialValues={{
-          dateRange: [dayjs('2023-01-01'), dayjs('2023-01-03')],
-          dateTimeRange: [
-            dayjs('2023-01-01 08:00:00'),
-            dayjs('2023-01-01 10:30:00'),
-          ],
-          weekRange: [dayjs('2023-01-02'), dayjs('2023-01-08')],
-          quarterRange: [dayjs('2023-01-01'), dayjs('2023-03-31')],
-          yearRange: [dayjs('2022-01-01'), dayjs('2023-01-01')],
-        }}
-      >
-        <ProFormDateRangePicker name="dateRange" label="日期" />
-        <ProFormDateTimeRangePicker name="dateTimeRange" label="日期时间" />
-        <ProFormDateWeekRangePicker name="weekRange" label="周" />
-        <ProFormDateQuarterRangePicker name="quarterRange" label="季度" />
-        <ProFormDateYearRangePicker name="yearRange" label="年份" />
-      </LightFilter>,
-    );
+    const prevDayjsLocale = dayjs.locale();
+    dayjs.locale('zh-cn', zhCn);
+    const d = (s: string) => dayjs(s).locale('zh-cn');
+    try {
+      const { container } = render(
+        <ConfigProvider locale={zhCN}>
+          <LightFilter
+            initialValues={{
+              dateRange: [d('2023-01-01'), d('2023-01-03')],
+              dateTimeRange: [
+                d('2023-01-01 08:00:00'),
+                d('2023-01-01 10:30:00'),
+              ],
+              weekRange: [d('2023-01-02'), d('2023-01-08')],
+              quarterRange: [d('2023-01-01'), d('2023-03-31')],
+              yearRange: [d('2022-01-01'), d('2023-01-01')],
+            }}
+          >
+            <LightFilter.dateRange name="dateRange" label="日期" />
+            <LightFilter.dateTimeRange name="dateTimeRange" label="日期时间" />
+            <LightFilter.weekRange name="weekRange" label="周" />
+            <LightFilter.quarterRange name="quarterRange" label="季度" />
+            <LightFilter.yearRange name="yearRange" label="年份" />
+          </LightFilter>
+        </ConfigProvider>,
+      );
 
-    await waitFor(() => {
-      const values = Array.from(
-        container.querySelectorAll<HTMLInputElement>('.ant-picker-input input'),
-      ).map((node) => node.value);
-      expect(values).toEqual(
-        expect.arrayContaining([
+      await waitFor(() => {
+        const values = Array.from(
+          container.querySelectorAll<HTMLInputElement>(
+            '.ant-picker-input input',
+          ),
+        ).map((node) => node.value);
+        expect(values).toEqual([
           '2023-01-01',
           '2023-01-03',
           '2023-01-01 08:00:00',
           '2023-01-01 10:30:00',
-          '2023-01-02',
-          '2023-01-08',
-          '2022-01-01',
-          '2023-01-01',
-        ]),
-      );
-    });
+          '2023-1周',
+          '2023-1周',
+          '2023-Q1',
+          '2023-Q1',
+          '2022',
+          '2023',
+        ]);
+      });
 
-    const weekLabel = dateArrayFormatter(
-      [dayjs('2023-01-02'), dayjs('2023-01-08')],
-      'YYYY-wo',
-    );
-    const quarterLabel = dateArrayFormatter(
-      [dayjs('2023-01-01'), dayjs('2023-03-31')],
-      'YYYY-[Q]Q',
-    );
-    const yearLabel = dateArrayFormatter(
-      [dayjs('2022-01-01'), dayjs('2023-01-01')],
-      'YYYY',
-    );
-    expect(weekLabel).toBe('2023-1st ~ 2023-2nd');
-    expect(quarterLabel).toBe('2023-Q1 ~ 2023-Q1');
-    expect(yearLabel).toBe('2022 ~ 2023');
+      // render 会拉取依赖里的 dayjs 插件，偶发影响全局 locale；断言前再固定一次
+      dayjs.locale('zh-cn', zhCn);
+
+      const weekLabel = dateArrayFormatter(
+        [d('2023-01-02'), d('2023-01-08')],
+        'gggg-wo',
+      );
+      const quarterLabel = dateArrayFormatter(
+        [d('2023-01-01'), d('2023-03-31')],
+        'YYYY-[Q]Q',
+      );
+      const yearLabel = dateArrayFormatter(
+        [d('2022-01-01'), d('2023-01-01')],
+        'YYYY',
+      );
+      expect(weekLabel).toBe('2023-1周 ~ 2023-1周');
+      expect(quarterLabel).toBe('2023-Q1 ~ 2023-Q1');
+      expect(yearLabel).toBe('2022 ~ 2023');
+    } finally {
+      dayjs.locale(prevDayjsLocale || 'en');
+    }
   });
 
   it(' 🪕 should not format digitRange label as date range', async () => {
@@ -423,14 +441,7 @@ describe('LightFilter', () => {
           digitRange: [12, 34],
         }}
       >
-        <ProFormDigitRange
-          name="digitRange"
-          label="数字范围"
-          lightProps={{
-            // Simulate inconsistent casing from user config
-            valueType: 'DigitRange',
-          }}
-        />
+        <LightFilter.digitRange name="digitRange" label="数字范围" />
       </LightFilter>,
     );
 
@@ -454,7 +465,7 @@ describe('LightFilter', () => {
 
     const { container } = render(
       <LightFilter onFinish={onFinish}>
-        <ProFormText name="name1" label="名称" />
+        <LightFilter.input name="name1" label="名称" />
       </LightFilter>,
     );
 
@@ -483,8 +494,8 @@ describe('LightFilter', () => {
         footerRender={footerRender}
         collapse
       >
-        <ProFormText name="name1" label="名称" />
-        <ProFormText name="name2" label="名称2" />
+        <LightFilter.input name="name1" label="名称" />
+        <LightFilter.input name="name2" label="名称2" />
       </LightFilter>,
     );
 
@@ -513,8 +524,8 @@ describe('LightFilter', () => {
           classNames: { root: 'my-lightfilter-popover' },
         }}
       >
-        <ProFormText name="name1" label="名称" />
-        <ProFormText name="name2" label="名称2" />
+        <LightFilter.input name="name1" label="名称" />
+        <LightFilter.input name="name2" label="名称2" />
       </LightFilter>,
     );
 
@@ -542,7 +553,7 @@ describe('LightFilter', () => {
   it(' 🪕 should default to borderless variant', async () => {
     const { container } = render(
       <LightFilter>
-        <ProFormText name="name" label="Name" />
+        <LightFilter.input name="name" label="Name" />
       </LightFilter>,
     );
 
@@ -567,7 +578,7 @@ describe('LightFilter', () => {
   it(' 🪕 should support outlined variant', async () => {
     const { container } = render(
       <LightFilter variant="outlined">
-        <ProFormText name="name" label="Name" />
+        <LightFilter.input name="name" label="Name" />
       </LightFilter>,
     );
 

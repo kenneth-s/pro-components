@@ -1,5 +1,9 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const jaJP: ProLocale = {
   moneySymbol: '¥',
+  deleteThisLine: 'この行を削除',
+  copyThisLine: 'この行をコピー',
   form: {
     lightFilter: {
       more: '更に',
@@ -32,7 +36,7 @@ export default {
   tableToolBar: {
     leftPin: '左に固定',
     rightPin: '右に固定',
-    noPin: 'キャンセル',
+    noPin: '固定なし',
     leftFixedTitle: '左に固定された項目',
     rightFixedTitle: '右に固定された項目',
     noFixedTitle: '固定されてない項目',
@@ -57,6 +61,8 @@ export default {
     submitText: 'ログイン',
   },
   editableTable: {
+    onlyOneLineEditor: '同時に編集できるのは1行のみです',
+    onlyAddOneLine: '同時に追加できるのは1行のみです',
     action: {
       save: '保存',
       cancel: 'キャンセル',
@@ -69,3 +75,5 @@ export default {
     close: '閉じる',
   },
 };
+
+export default jaJP;

@@ -5,7 +5,7 @@ import type {
   SortOrder,
 } from 'antd/lib/table/interface';
 import type React from 'react';
-import { Key } from 'react';
+import { type ReactElement, Key } from 'react';
 import type { IntlType } from '../../provider';
 import type { UseEditableUtilType } from '../../utils';
 import type {
@@ -388,3 +388,84 @@ export const parseProFilteredValue = <T>(
   // 返回对应的筛选值
   return filterKey ? proFilter[filterKey] : undefined;
 };
+
+/**
+ * 解析 tableViewRender 的 defaultDom：兼容 Element 或惰性工厂（避免在未使用时构造 Table）。
+ */
+export function resolveTableViewDefaultDom(
+  defaultDom: ReactElement | (() => ReactElement),
+): ReactElement {
+  return typeof defaultDom === 'function' ? defaultDom() : defaultDom;
+}
+
+/**
+ * 生成可编辑表格的 getRowKey 函数，供 CellEditorTable / RowEditorTable 复用。
+ *
+ * 规则与 Table.tsx useRowKey / EditableTable getRowKey 保持一致：
+ *  - index === -1 时（内部标识新行）直接取字段值，不走 index fallback
+ *  - name 模式下使用 index.toString() 作为 key（便于转换为数组索引）
+ *  - 否则取 rowKey 字段值，fallback 到 index.toString()
+ *
+ * rowKey 类型兼容 antd TableProps.rowKey 的完整联合类型：
+ *   string | number | symbol | GetRowKey<DataType>
+ * number / symbol 类型在运行时作为属性名使用（通过 String() 转换）。
+ */
+export function buildEditableTableRowKey<DataType extends Record<string, any>>(
+  rowKey:
+    | string
+    | number
+    | symbol
+    | import('antd/lib/table/interface').GetRowKey<DataType>,
+  name: any,
+): import('antd/lib/table/interface').GetRowKey<DataType> {
+  if (typeof rowKey === 'function') {
+    return rowKey as import('antd/lib/table/interface').GetRowKey<DataType>;
+  }
+  const rowKeyStr = String(rowKey);
+  return (record: DataType, index?: number): React.Key => {
+    if (index === -1) {
+      return (record as any)?.[rowKeyStr];
+    }
+    if (name) {
+      return index?.toString() ?? '';
+    }
+    return (record as any)?.[rowKeyStr] ?? index?.toString() ?? '';
+  };
+}
+
+/**
+ * 将 editableKeys 解析为 RowEditableConfig.onChange 的第二参数，
+ * 与 useEditableArray 内 setEditableRowKeys 一致：single 为单条（可为空场景下的 undefined），multiple 为数组。
+ */
+export function resolveEditingPayloadForRowEditableOnChange<
+  DataType extends Record<string, any>,
+>(
+  keys: Key[],
+  dataSource: readonly DataType[] | undefined,
+  getRowKey: import('antd/lib/table/interface').GetRowKey<DataType>,
+  editableType: 'single' | 'multiple' | undefined,
+  childrenColumnName = 'children',
+): DataType | DataType[] {
+  const cleanKeys = keys.filter((key) => key !== undefined);
+  const kvMap = new Map<Key, DataType>();
+  const dig = (records: readonly DataType[]) => {
+    records.forEach((record, index) => {
+      const rowKey = getRowKey(record, index);
+      kvMap.set(rowKey, record);
+      if (
+        record &&
+        typeof record === 'object' &&
+        childrenColumnName in record
+      ) {
+        dig(((record as any)[childrenColumnName] || []) as DataType[]);
+      }
+    });
+  };
+  dig(dataSource ?? []);
+  const editingRecords = cleanKeys
+    .map((key) => kvMap.get(key))
+    .filter((k): k is DataType => k !== undefined);
+  const type = editableType || 'single';
+  const editingPayload = type === 'single' ? editingRecords[0] : editingRecords;
+  return editingPayload as DataType | DataType[];
+}

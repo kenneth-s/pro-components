@@ -19,7 +19,7 @@ const Demo = () => {
     splitMenus: true,
   };
 
-  const [pathname, setPathname] = useState('/list/sub-page/sub-sub-page1');
+  const [pathname, setPathname] = useState('/product/list/on-sale');
 
   return (
     <div
@@ -142,7 +142,7 @@ const Demo = () => {
 };
 
 export default () => (
-  <div style={{ padding: 24 }}>
+  <div>
     <Demo />
   </div>
 );

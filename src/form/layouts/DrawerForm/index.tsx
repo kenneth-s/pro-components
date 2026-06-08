@@ -1,21 +1,12 @@
-import { merge, useControlledState, warning } from '@rc-component/util';
+import { warning } from '@rc-component/util';
 import type { DrawerProps, FormProps } from 'antd';
 import { ConfigProvider, Drawer } from 'antd';
 import { clsx } from 'clsx';
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { createPortal } from 'react-dom';
-import { isBrowser, omitUndefined, useRefFunction } from '../../../utils';
+import React, { useCallback, useContext, useRef, useState } from 'react';
+import { isBrowser, omitUndefined } from '../../../utils';
 import type { CommonFormProps, ProFormInstance } from '../../BaseForm';
 import { BaseForm } from '../../BaseForm';
-import { SubmitterProps } from '../../BaseForm/Submitter';
+import { useOverlayForm } from '../_shared/useOverlayForm';
 import { useStyle } from './style';
 
 const { noteOnce } = warning;
@@ -89,6 +80,7 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
     !(rest as any).footer || !drawerProps?.footer,
     'DrawerForm 是一个 ProForm 的特殊布局，如果想自定义按钮，请使用 submit.render 自定义。',
   );
+
   const resizeInfo: CustomizeResizeType = React.useMemo(() => {
     const defaultResize: CustomizeResizeType = {
       onResize: () => {},
@@ -96,11 +88,7 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
       minWidth: 300,
     };
     if (typeof resize === 'boolean') {
-      if (resize) {
-        return defaultResize;
-      } else {
-        return {};
-      }
+      return resize ? defaultResize : {};
     }
     return omitUndefined({
       onResize: resize?.onResize ?? defaultResize.onResize,
@@ -114,217 +102,56 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
   const { wrapSSR, hashId } = useStyle(baseClassName);
   const getCls = (className: string) => `${baseClassName}-${className}`;
 
-  const [, forceUpdate] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [resizableDrawer, setResizableDrawer] = useState(false);
-
   const [drawerWidth, setDrawerWidth] = useState<DrawerProps['size']>(
     width ? width : resize ? resizeInfo?.minWidth : 800,
   );
 
-  const [open, setOpenInner] = useControlledState<boolean>(
-    !!propsOpen,
-    propsOpen,
-  );
-
-  /**
-   * 使用 useRefFunction 包装回调，确保引用稳定
-   */
-  const onOpenChangeCallback = useRefFunction((o: boolean) => {
-    onOpenChange?.(o);
-  });
-
-  /**
-   * 使用 queueMicrotask 延迟回调调用，避免在渲染阶段调用外部回调导致的 React 警告
-   * "Cannot update a component while rendering a different component"
-   */
-  const setOpen = useCallback(
-    (updater: boolean | ((prev: boolean) => boolean)) => {
-      setOpenInner((prev) => {
-        const next =
-          typeof updater === 'function'
-            ? (updater as (p: boolean) => boolean)(prev)
-            : updater;
-        queueMicrotask(() => {
-          onOpenChangeCallback(next);
-        });
-        return next;
-      });
-    },
-    [onOpenChangeCallback],
-  );
-
-  const footerRef = useRef<HTMLDivElement | null>(null);
-
-  const footerDomRef: React.RefCallback<HTMLDivElement> = useCallback(
-    (element) => {
-      if (footerRef.current === null && element) {
-        forceUpdate([]);
-      }
-      footerRef.current = element;
-    },
-    [],
-  );
-
   const formRef = useRef<ProFormInstance>();
 
-  const resetFields = useCallback(() => {
-    const form = rest.formRef?.current ?? rest.form ?? formRef.current;
-    // 重置表单
-    // issue: 8858 form.resetFields is not a function
-    if (
-      form &&
-      drawerProps?.destroyOnHidden &&
-      typeof form.resetFields === 'function'
-    ) {
-      form.resetFields();
-    }
-  }, [drawerProps?.destroyOnHidden, rest.form, rest.formRef]);
-
-  useEffect(() => {
-    if (open && propsOpen) {
-      onOpenChange?.(true);
-    }
-
-    if (resizableDrawer) {
-      setDrawerWidth(resizeInfo?.minWidth);
-    }
-  }, [propsOpen, open, resizableDrawer]);
-
-  useImperativeHandle(
-    rest.formRef,
-    () => {
-      return formRef.current;
-    },
-    [formRef.current],
-  );
-
-  const triggerDom = useMemo(() => {
-    if (!trigger) {
-      return null;
-    }
-
-    return React.cloneElement(trigger, {
-      key: 'trigger',
-      ...trigger.props,
-      onClick: async (e: any) => {
-        setOpen(!open);
-        setResizableDrawer(!Object.keys(resizeInfo));
-        trigger.props?.onClick?.(e);
-      },
-    });
-  }, [setOpen, trigger, open, setResizableDrawer, resizableDrawer]);
-
-  const submitterConfig = useMemo(() => {
-    if (rest.submitter === false) {
-      return false;
-    }
-
-    return merge(
-      {
-        searchConfig: {
-          submitText: context.locale?.Modal?.okText ?? '确认',
-          resetText: context.locale?.Modal?.cancelText ?? '取消',
-        },
-        resetButtonProps: {
-          preventDefault: true,
-          disabled: submitTimeout && loading,
-          onClick: (e: any) => {
-            setOpen(false);
-            drawerProps?.onClose?.(e);
-          },
-        },
-      } as SubmitterProps,
-      rest.submitter ?? {},
-    );
-  }, [
-    rest.submitter,
-    context.locale?.Modal?.okText,
-    context.locale?.Modal?.cancelText,
-    submitTimeout,
-    loading,
+  const {
+    open,
     setOpen,
-    drawerProps,
-  ]);
-
-  const contentRender = useCallback((formDom: any, submitter: any) => {
-    return (
-      <>
-        {formDom}
-        {footerRef.current && submitter ? (
-          <React.Fragment key="submitter">
-            {createPortal(submitter, footerRef.current)}
-          </React.Fragment>
-        ) : (
-          submitter
-        )}
-      </>
-    );
-  }, []);
-
-  const onFinishHandle = useRefFunction(async (values: T) => {
-    const response = onFinish?.(values);
-    if (submitTimeout && response instanceof Promise) {
-      setLoading(true);
-      const timer = setTimeout(() => setLoading(false), submitTimeout);
-      try {
-        const result = await response;
-        clearTimeout(timer);
-        setLoading(false);
-        // 返回真值，关闭弹框
-        if (result) {
-          setOpen(false);
-        }
-        return result;
-      } catch (error) {
-        clearTimeout(timer);
-        setLoading(false);
-        throw error;
-      }
-    } else if (submitTimeout) {
-      // 如果 submitTimeout 存在但 response 不是 Promise，也要设置 loading
-      setLoading(true);
-      const timer = setTimeout(() => setLoading(false), submitTimeout);
-      try {
-        const result = await response;
-        clearTimeout(timer);
-        setLoading(false);
-        // 返回真值，关闭弹框
-        if (result) {
-          setOpen(false);
-        }
-        return result;
-      } catch (error) {
-        clearTimeout(timer);
-        setLoading(false);
-        throw error;
-      }
-    }
-    const result = await response;
-    // 返回真值，关闭弹框
-    if (result) {
-      setOpen(false);
-    }
-    return result;
+    loading,
+    footerDomRef,
+    footerRef,
+    triggerDom,
+    submitterConfig,
+    contentRender,
+    onFinishHandle,
+    resetFields,
+  } = useOverlayForm<T>({
+    propsOpen,
+    onOpenChange,
+    formRef,
+    propsFormRef: rest.formRef,
+    destroyOnHidden: drawerProps?.destroyOnHidden,
+    submitTimeout,
+    onFinish,
+    onCloseExtra: drawerProps?.onClose,
+    submitter: rest.submitter,
+    searchConfig: {
+      submitText: context.locale?.Modal?.okText ?? '确认',
+      resetText: context.locale?.Modal?.cancelText ?? '取消',
+    },
+    trigger,
   });
 
   const cbHandleMouseMove = useCallback(
     (e: MouseEvent) => {
-      const offsetRight: number | string = ((document.body.offsetWidth ||
-        1000) -
-        (e.clientX - document.body.offsetLeft)) as number | string;
+      const offsetRight =
+        (document.body.offsetWidth || 1000) -
+        (e.clientX - document.body.offsetLeft);
       const minWidth = resizeInfo?.minWidth ?? (width || 800);
       const maxWidth = resizeInfo?.maxWidth ?? window.innerWidth * 0.8;
 
-      if (offsetRight < minWidth) {
+      if (offsetRight < (minWidth as number)) {
         setDrawerWidth(minWidth);
         return;
       }
-      if (offsetRight > maxWidth) {
+      if (offsetRight > (maxWidth as number)) {
         setDrawerWidth(maxWidth);
         return;
       }
-
       setDrawerWidth(offsetRight);
     },
     [resizeInfo?.maxWidth, resizeInfo?.minWidth, width],
@@ -345,14 +172,15 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
           typeof drawerWidth === 'number' ? drawerWidth : (drawerWidth as any)
         }
         open={open}
-        afterOpenChange={(open) => {
-          if (!open && drawerProps?.destroyOnHidden) {
+        afterOpenChange={(nextOpen) => {
+          // fix: #6006 destroyOnHidden 时在抽屉关闭后重置，避免关闭过程中闪烁
+          if (!nextOpen && drawerProps?.destroyOnHidden) {
             resetFields();
           }
-          drawerProps?.afterOpenChange?.(open);
+          drawerProps?.afterOpenChange?.(nextOpen);
         }}
         onClose={(e) => {
-          // 提交表单loading时，阻止弹框关闭
+          // 提交时 loading，阻止关闭
           if (submitTimeout && loading) return;
           setOpen(false);
           drawerProps?.onClose?.(e);
@@ -361,10 +189,7 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
           rest.submitter !== false && (
             <div
               ref={footerDomRef}
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-              }}
+              style={{ display: 'flex', justifyContent: 'flex-end' }}
             />
           )
         }
@@ -383,36 +208,33 @@ function DrawerForm<T = Record<string, any>, U = Record<string, any>>({
               e.preventDefault();
               document.addEventListener('mousemove', cbHandleMouseMove);
               document.addEventListener('mouseup', cbHandleMouseUp);
-              setResizableDrawer(true);
             }}
           />
         ) : null}
-        <>
-          <BaseForm<T, U>
-            formComponentType="DrawerForm"
-            layout="vertical"
-            {...rest}
-            formRef={formRef}
-            onInit={(_, form) => {
-              if (rest.formRef) {
-                (
-                  rest.formRef as React.MutableRefObject<ProFormInstance<T>>
-                ).current = form;
-              }
-              rest?.onInit?.(_, form);
-              formRef.current = form;
-            }}
-            submitter={submitterConfig}
-            onFinish={async (values) => {
-              const result = await onFinishHandle(values);
-              // fix: #6006 如果 result 为 true,那么必然会触发抽屉关闭，我们无需在 此处重置表单，只需在抽屉关闭时重置即可
-              return result;
-            }}
-            contentRender={contentRender}
-          >
-            {children}
-          </BaseForm>
-        </>
+        <BaseForm<T, U>
+          formComponentType="DrawerForm"
+          layout="vertical"
+          {...rest}
+          formRef={formRef}
+          onInit={(_, form) => {
+            if (rest.formRef) {
+              (
+                rest.formRef as React.MutableRefObject<ProFormInstance<T>>
+              ).current = form;
+            }
+            rest?.onInit?.(_, form);
+            formRef.current = form;
+          }}
+          submitter={submitterConfig}
+          onFinish={async (values) => {
+            // fix: #6006 result 为 true 时抽屉关闭由 onFinishHandle 内部处理，
+            // 无需在此重置，等 afterOpenChange 触发时再重置
+            return onFinishHandle(values);
+          }}
+          contentRender={contentRender}
+        >
+          {children}
+        </BaseForm>
       </Drawer>
       {triggerDom}
     </>,

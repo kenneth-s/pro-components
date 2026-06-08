@@ -1,6 +1,8 @@
-export default {
+import type { ProLocale } from './zh_CN';
+
+const ukUA: ProLocale = {
   moneySymbol: '₴',
-  deleteThisLine: 'Видатили рядок',
+  deleteThisLine: 'Видалити цей рядок',
   copyThisLine: 'Скопіювати рядок',
   form: {
     lightFilter: {
@@ -56,10 +58,11 @@ export default {
     submit: 'Завершити',
   },
   loginForm: {
-    submitText: 'Вхіх',
+    submitText: 'Вхід',
   },
   editableTable: {
     onlyOneLineEditor: 'Тільки один рядок може бути редагований одночасно',
+    onlyAddOneLine: 'Можна додати лише один рядок',
     action: {
       save: 'Зберегти',
       cancel: 'Відмінити',
@@ -72,3 +75,5 @@ export default {
     close: 'Закрито',
   },
 };
+
+export default ukUA;

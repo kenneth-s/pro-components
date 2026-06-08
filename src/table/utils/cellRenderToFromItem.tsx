@@ -1,4 +1,5 @@
 import { get } from '@rc-component/util';
+import type { PopoverProps } from 'antd';
 import { Form } from 'antd';
 import type { AnyObject } from 'antd/lib/_util/type';
 import React, {
@@ -19,6 +20,7 @@ import type {
 import {
   InlineErrorFormItem,
   getFieldPropsOrFormItemProps,
+  isDeepEqualReact,
   runFunction,
 } from '../../utils';
 import type { ProColumnType } from '../index';
@@ -28,8 +30,16 @@ const SHOW_EMPTY_TEXT_LIST = ['', null, undefined];
 
 /**
  * 拼接用于编辑的 key
+ *
+ * @deprecated 请使用 buildNamePath，spellNamePath 是历史命名，保留以兼容外部引用
  */
-export const spellNamePath = (...rest: any[]): React.Key[] => {
+export const spellNamePath = (...rest: any[]): React.Key[] =>
+  buildNamePath(...rest);
+
+/**
+ * 拼接用于编辑的表单字段路径（name path）
+ */
+export const buildNamePath = (...rest: any[]): React.Key[] => {
   return rest
     .filter((index) => index !== undefined)
     .map((item) => {
@@ -90,7 +100,7 @@ const CellRenderFromItem = <T extends AnyObject>(
     [editableUtils, index, rowData],
   );
   const [formItemName, setName] = useState<React.Key[]>(() =>
-    spellNamePath(
+    buildNamePath(
       prefixName,
       prefixName ? subName : [],
       prefixName ? realIndex : key,
@@ -103,13 +113,18 @@ const CellRenderFromItem = <T extends AnyObject>(
   }, [formItemName]);
 
   useEffect(() => {
-    const value = spellNamePath(
+    const nextName = buildNamePath(
       prefixName,
       prefixName ? subName : [],
       prefixName ? realIndex : key,
       columnProps?.key ?? columnProps?.dataIndex ?? index,
     );
-    if (value.join('-') !== formItemName.join('-')) setName(value);
+    // 用 functional update 读取最新 prev 值进行比较，避免把 formItemName
+    // 加入 deps 导致「state 变 → effect 跑 → setName → state 变」的循环依赖。
+    setName((prev) => {
+      if (nextName.join('-') !== prev.join('-')) return nextName;
+      return prev;
+    });
   }, [
     columnProps?.dataIndex,
     columnProps?.key,
@@ -118,7 +133,6 @@ const CellRenderFromItem = <T extends AnyObject>(
     prefixName,
     key,
     subName,
-    formItemName,
     realIndex,
   ]);
 
@@ -136,25 +150,6 @@ const CellRenderFromItem = <T extends AnyObject>(
     [columnProps, editableForm, index, rowName],
   );
 
-  const InlineItem = useCallback<React.FC<any>>(
-    ({ children, ...restProps }) => (
-      <InlineErrorFormItem
-        popoverProps={{
-          getPopupContainer:
-            formContext.getPopupContainer ||
-            (() => counter.rootDomRef.current || document.body),
-        }}
-        key={key}
-        errorType="popover"
-        name={formItemName}
-        {...restProps}
-      >
-        {children}
-      </InlineErrorFormItem>
-    ),
-    [key, formItemName],
-  );
-
   const generateFormItem = useCallback(() => {
     const formItemProps = {
       ...getFieldPropsOrFormItemProps(columnProps?.formItemProps, ...needProps),
@@ -165,10 +160,13 @@ const CellRenderFromItem = <T extends AnyObject>(
       ...formItemProps?.messageVariables,
     };
 
-    formItemProps.initialValue =
-      (prefixName ? null : text) ??
-      formItemProps?.initialValue ??
-      columnProps?.initialValue;
+    // 有 prefixName（EditableTable 嵌套场景）时不应强制覆盖 initialValue：
+    // 原写法 `(prefixName ? null : text) ?? ...` 中 `??` 不过滤 null，
+    // 导致有 prefixName 时 initialValue 被强制设为 null，覆盖了 formItemProps
+    // 和 columnProps 中的有效值。
+    formItemProps.initialValue = prefixName
+      ? (formItemProps?.initialValue ?? columnProps?.initialValue)
+      : (text ?? formItemProps?.initialValue ?? columnProps?.initialValue);
     let fieldDom: React.ReactNode = (
       <ProFormField
         cacheForSwr
@@ -211,11 +209,30 @@ const CellRenderFromItem = <T extends AnyObject>(
       if (columnProps.ignoreFormItem) return <>{fieldDom}</>;
     }
 
+    // 注意：不能把 InlineErrorFormItem 包装成 useCallback<React.FC> 再作为组件使用。
+    // 每次 deps 变化会产生新函数引用，React 会认为是不同组件而 unmount/remount，
+    // 导致 Form.Item 内部校验状态丢失。此处直接内联 JSX 是正确做法。
     return (
-      <InlineItem key={formItemName.join('-')} {...formItemProps}>
+      <InlineErrorFormItem
+        popoverProps={{
+          getPopupContainer:
+            (formContext.getPopupContainer as PopoverProps['getPopupContainer']) ||
+            (() =>
+              (counter.rootDomRef.current || document.body) as HTMLElement),
+        }}
+        key={formItemName.join('-')}
+        errorType="popover"
+        name={formItemName}
+        {...formItemProps}
+      >
         {fieldDom}
-      </InlineItem>
+      </InlineErrorFormItem>
     );
+    // deps 说明：
+    // - needProps 已经 memo([columnProps, editableForm, index, rowName])，
+    //   因此 columnProps / editableForm / index 的变化都会通过 needProps 触发。
+    // - counter.rootDomRef 是 React ref 对象，引用永不变，不需要进 deps。
+    // - editableUtils 优先使用解构变量，与 props.editableUtils 引用相同。
   }, [
     columnProps,
     needProps,
@@ -224,12 +241,10 @@ const CellRenderFromItem = <T extends AnyObject>(
     key,
     formItemName,
     proFieldProps,
-    InlineItem,
-    index,
+    formContext.getPopupContainer,
     recordKey,
     rowData,
-    editableForm,
-    props.editableUtils,
+    editableUtils,
   ]);
 
   if (formItemName.length === 0) return null;
@@ -245,14 +260,17 @@ const CellRenderFromItem = <T extends AnyObject>(
         shouldUpdate={(pre, next) => {
           if (pre === next) return false;
           const shouldName = [rowName].flat(1) as (string | number | symbol)[];
-          try {
-            return (
-              JSON.stringify(get(pre, shouldName)) !==
-              JSON.stringify(get(next, shouldName))
-            );
-          } catch (_error) {
-            return true;
-          }
+          // rowName 为空（formItemName 只有一段，无法精确定位行数据）时，
+          // 直接返回 true 让 generateFormItem 重新执行，避免用空路径
+          // get(values, []) 拿到整个 form values 对象做全量 JSON.stringify。
+          if (shouldName.length === 0) return true;
+          const prevValue = get(pre, shouldName);
+          const nextValue = get(next, shouldName);
+          // 使用 isDeepEqualReact 做深比较：
+          // 1. 内部先做引用浅比较，相同引用直接返回 true，性能 O(1)
+          // 2. 深比较时自动处理循环引用，不会像 JSON.stringify 一样抛异常
+          // 3. 大数据量时性能优于 JSON.stringify（支持短路退出）
+          return !isDeepEqualReact(prevValue, nextValue);
         }}
       >
         {() => generateFormItem()}
@@ -349,7 +367,7 @@ function cellRenderToFromItem<T extends AnyObject>(
   }
   return (
     <CellRenderFromItem<T>
-      key={config.recordKey}
+      key={config.recordKey ?? config.index}
       {...config}
       proFieldProps={proFieldProps}
     />

@@ -1,4 +1,5 @@
-import { LikeOutlined, UserOutlined } from '@ant-design/icons';
+// UserOutlined 在 antd icons 里没有 Filled 版本（UserFilled 不存在），保留 Outlined
+import { LikeFilled, UserOutlined } from '@ant-design/icons';
 import type { ProSettings } from '@ant-design/pro-components';
 import { PageContainer, ProLayout } from '@ant-design/pro-components';
 import { Button, Descriptions, Result, Space, Statistic } from 'antd';
@@ -10,7 +11,7 @@ const content = (
   <Descriptions size="small" column={2}>
     <Descriptions.Item label="创建人">书琰</Descriptions.Item>
     <Descriptions.Item label="联系方式">
-      <a>421421</a>
+      <span>421421</span>
     </Descriptions.Item>
     <Descriptions.Item label="创建时间">2017-01-10</Descriptions.Item>
     <Descriptions.Item label="更新时间">2017-10-10</Descriptions.Item>
@@ -21,7 +22,7 @@ const content = (
 );
 
 const Demo = () => {
-  const [settings, setSetting] = useState<Partial<ProSettings> | undefined>({
+  const [settings, setSettings] = useState<Partial<ProSettings> | undefined>({
     fixSiderbar: true,
   });
   const [pathname, setPathname] = useState('/welcome');
@@ -70,13 +71,21 @@ const Demo = () => {
         }}
         onMenuHeaderClick={demoOnMenuHeaderClick}
         menuItemRender={(item, dom) => (
-          <a
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => {
               setPathname(item.path || '/welcome');
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setPathname(item.path || '/welcome');
+              }
+            }}
           >
             {dom}
-          </a>
+          </div>
         )}
         avatarProps={{
           icon: <UserOutlined />,
@@ -100,7 +109,7 @@ const Demo = () => {
               <Statistic
                 title="Feedback"
                 value={1128}
-                prefix={<LikeOutlined />}
+                prefix={<LikeFilled />}
               />
               <Statistic title="Unmerged" value={93} suffix="/ 100" />
             </Space>
@@ -143,7 +152,7 @@ const Demo = () => {
 };
 
 export default () => (
-  <div style={{ padding: 24 }}>
+  <div>
     <Demo />
   </div>
 );

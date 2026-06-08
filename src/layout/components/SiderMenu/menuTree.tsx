@@ -10,9 +10,9 @@ import type {
   WithFalse,
 } from '../../typing';
 import type { PrivateSiderMenuProps } from './SiderMenu';
-import type { NavMenuNode } from './navMenuTypes';
 import type {
   MenuMode,
+  NavMenuNode,
   ProLayoutNavMenuDomProps,
   ProLayoutNavMenuSelectInfo,
 } from './types';
@@ -144,11 +144,16 @@ function resolveMenuItemTitle(ctx: BaseMenuTreeContext, item: MenuDataItem) {
   return text;
 }
 
+/**
+ * 渲染叶子项的行内 DOM（icon + label），与 SidebarMenu 对齐：
+ * - 使用 `span.icon + span.label` 的扁平结构，避免再多一层 `div.item-title` 包裹
+ * - icon 容器固定 `iconBox`（默认 24px），内部 svg 走 `iconSvgSize`（默认 18px）
+ * - collapsed 时不挂 label，与 SidebarMenu 的「不依赖 CSS 隐藏文案」策略一致
+ */
 function renderLeafRow(
   ctx: BaseMenuTreeContext,
   item: MenuDataItem,
   level: number,
-  collapsedGroupDepth: number,
 ) {
   const path = normalizeMenuPath(item.path || '/');
   const {
@@ -157,87 +162,69 @@ function renderLeafRow(
     onCollapse,
     menuItemRender,
     baseClassName,
-    menu,
     collapsed,
     renderIcon,
   } = ctx;
 
   const titleText = resolveMenuItemTitle(ctx, item);
-  const isGroupLayout = menu?.type === 'group';
-  const showIconSlot = level === 0 || (isGroupLayout && level === 1);
-  const iconNode = !showIconSlot
-    ? null
-    : renderIcon(item.icon, `${baseClassName}-icon ${ctx.hashId}`);
+  const iconNode = item.icon
+    ? renderIcon(item.icon, `${baseClassName}-icon ${ctx.hashId}`)
+    : null;
 
   const fallbackLetter =
-    collapsed && showIconSlot ? collapsedTitleLetter(titleText) : null;
+    collapsed && level === 0 ? collapsedTitleLetter(titleText) : null;
 
-  let row = (
-    <div
-      key={path}
-      className={clsx(`${baseClassName}-item-title`, ctx.hashId, {
-        [`${baseClassName}-item-title-collapsed`]: collapsed,
-        [`${baseClassName}-item-title-collapsed-level-${collapsedGroupDepth}`]:
-          collapsed,
-        [`${baseClassName}-item-collapsed-show-title`]:
-          menu?.collapsedShowTitle && collapsed,
-      })}
-    >
+  /**
+   * **始终渲染 label 与 icon**：
+   * 同一份 NavMenuNode 既会被主区（折叠态）使用，也会被 popup（展开态）使用。
+   * 若在数据构造期按 `collapsed` 剃掉文案，popup 内会拿到空 span，无法恢复。
+   * 是否在主区折叠态隐藏文案，全部交由 cssinjs 的 `&--collapsed` 块控制。
+   */
+  const iconCell =
+    iconNode || fallbackLetter !== null ? (
       <span
         className={clsx(`${baseClassName}-item-icon`, ctx.hashId)}
-        style={{
-          display: fallbackLetter === null && !iconNode ? 'none' : '',
-        }}
+        data-testid="pro-layout-menu-tree-item-icon"
       >
         {iconNode || <span>{fallbackLetter}</span>}
       </span>
-      <span
-        className={clsx(`${baseClassName}-item-text`, ctx.hashId, {
-          [`${baseClassName}-item-text-has-icon`]:
-            showIconSlot && (iconNode || fallbackLetter),
-        })}
-      >
-        {titleText}
-      </span>
-    </div>
+    ) : null;
+
+  const labelCell = (
+    <span
+      className={clsx(`${baseClassName}-item-label`, ctx.hashId, {
+        [`${baseClassName}-item-text-has-icon`]:
+          !!(iconNode || fallbackLetter),
+      })}
+      data-testid="pro-layout-menu-tree-item-label"
+    >
+      {titleText}
+    </span>
   );
+
+  const titleClassName = clsx(`${baseClassName}-item-title`, ctx.hashId);
+
   const isExternalUrl = isUrl(path);
 
-  if (isExternalUrl) {
-    row = (
-      <span
-        key={path}
-        onClick={() => {
-          window?.open?.(path, '_blank');
-        }}
-        className={clsx(`${baseClassName}-item-title`, ctx.hashId, {
-          [`${baseClassName}-item-title-collapsed`]: collapsed,
-          [`${baseClassName}-item-title-collapsed-level-${collapsedGroupDepth}`]:
-            collapsed,
-          [`${baseClassName}-item-link`]: true,
-          [`${baseClassName}-item-collapsed-show-title`]:
-            menu?.collapsedShowTitle && collapsed,
-        })}
-      >
-        <span
-          className={clsx(`${baseClassName}-item-icon`, ctx.hashId)}
-          style={{
-            display: fallbackLetter === null && !iconNode ? 'none' : '',
-          }}
-        >
-          {iconNode || <span>{fallbackLetter}</span>}
-        </span>
-        <span
-          className={clsx(`${baseClassName}-item-text`, ctx.hashId, {
-            [`${baseClassName}-item-text-has-icon`]:
-              showIconSlot && (iconNode || fallbackLetter),
-          })}
-        >
-          {titleText}
-        </span>
-      </span>
-    );
-  }
+  let row: React.ReactNode = (
+    <span
+      key={path}
+      data-pro-layout-nav-item-title
+      className={titleClassName}
+      data-testid="pro-layout-menu-tree-item-title"
+      onClick={
+        isExternalUrl
+          ? () => {
+              window?.open?.(path, '_blank');
+            }
+          : undefined
+      }
+    >
+      {iconCell}
+      {labelCell}
+    </span>
+  );
+
   if (menuItemRender) {
     const renderItemProps = {
       ...item,
@@ -248,18 +235,9 @@ function renderLeafRow(
       onClick: () => onCollapse && onCollapse(true),
       children: undefined,
     };
-    return level === 0 ? (
-      <MenuItemTooltip
-        collapsed={collapsed}
-        title={titleText}
-        disable={item.disabledTooltip}
-      >
-        {menuItemRender(renderItemProps, row, ctx)}
-      </MenuItemTooltip>
-    ) : (
-      menuItemRender(renderItemProps, row, ctx)
-    );
+    row = menuItemRender(renderItemProps, row, ctx);
   }
+
   return level === 0 ? (
     <MenuItemTooltip
       collapsed={collapsed}
@@ -273,58 +251,70 @@ function renderLeafRow(
   );
 }
 
+/**
+ * 将单个 `MenuDataItem` 转为 `NavMenuNode`。
+ *
+ * 返回类型故意不是 `NavMenuNode | NavMenuNode[]`：当前实现下永远只返回单个节点，
+ * 让调用方多一层 `.flat()` 是噪音。如未来要支持「一个 item 展开为多个 node」，
+ * 再放宽返回类型。
+ */
 function mapMenuItemToNavNode(
   ctx: BaseMenuTreeContext,
   item: MenuDataItem,
   depth: number,
-  collapsedGroupDepth: number,
-): NavMenuNode | NavMenuNode[] {
-  const { subMenuItemRender, baseClassName, collapsed, menu, layout, renderIcon } =
-    ctx;
+): NavMenuNode {
+  const {
+    subMenuItemRender,
+    baseClassName,
+    collapsed,
+    menu,
+    layout,
+    renderIcon,
+  } = ctx;
   const useGroupChrome = menu?.type === 'group' && layout !== 'top';
   const titleText = resolveMenuItemTitle(ctx, item);
   const children = item?.children;
 
-  const rowVariant = useGroupChrome && depth === 0 ? ('group' as const) : undefined;
+  const rowVariant =
+    useGroupChrome && depth === 0 ? ('group' as const) : undefined;
 
   if (Array.isArray(children) && children.length > 0) {
-    const iconLevel = depth === 0 || (useGroupChrome && depth === 1);
+    const iconDom = item.icon
+      ? renderIcon(item.icon, `${baseClassName}-icon ${ctx.hashId}`)
+      : null;
 
-    const iconDom = renderIcon(
-      item.icon,
-      `${baseClassName}-icon ${ctx.hashId}`,
-    );
     const fallbackLetter =
-      collapsed && iconLevel ? collapsedTitleLetter(titleText) : null;
+      collapsed && depth === 0 ? collapsedTitleLetter(titleText) : null;
 
+    const showIconCell = !!(iconDom || fallbackLetter);
+
+    /** 标题行 DOM：`span.icon? + span.label`，与 leaf 完全对齐 */
     const defaultTitleRow = (
-      <div
+      <span
+        data-pro-layout-nav-item-title
         className={clsx(`${baseClassName}-item-title`, ctx.hashId, {
-          [`${baseClassName}-item-title-collapsed`]: collapsed,
-          [`${baseClassName}-item-title-collapsed-level-${collapsedGroupDepth}`]:
-            collapsed,
           [`${baseClassName}-group-item-title`]: rowVariant === 'group',
-          [`${baseClassName}-item-collapsed-show-title`]:
-            menu?.collapsedShowTitle && collapsed,
         })}
+        data-testid="pro-layout-menu-tree-item-title"
       >
-        {rowVariant === 'group' && collapsed ? null : iconLevel &&
-          (iconDom || fallbackLetter) ? (
-          <span className={clsx(`${baseClassName}-item-icon`, ctx.hashId)}>
+        {showIconCell ? (
+          <span
+            className={clsx(`${baseClassName}-item-icon`, ctx.hashId)}
+            data-testid="pro-layout-menu-tree-item-icon"
+          >
             {iconDom ?? fallbackLetter}
           </span>
         ) : null}
         <span
-          className={clsx(`${baseClassName}-item-text`, ctx.hashId, {
+          className={clsx(`${baseClassName}-item-label`, ctx.hashId, {
             [`${baseClassName}-item-text-has-icon`]:
-              rowVariant !== 'group' &&
-              iconLevel &&
-              (iconDom || fallbackLetter),
+              rowVariant !== 'group' && showIconCell,
           })}
+          data-testid="pro-layout-menu-tree-item-label"
         >
           {titleText}
         </span>
-      </div>
+      </span>
     );
 
     const titleCell = subMenuItemRender
@@ -332,62 +322,46 @@ function mapMenuItemToNavNode(
       : defaultTitleRow;
 
     const nextDepth = depth + 1;
-    const nextCollapsedDepth =
-      useGroupChrome && depth === 0 && ctx.collapsed ? depth : depth + 1;
 
-    const childNodes =
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define -- `mapMenuDataToNavNodes` 与 `mapMenuItemToNavNode` 互递归
-      mapMenuDataToNavNodes(ctx, children, nextDepth, nextCollapsedDepth);
+    const childNodes = mapMenuDataToNavNodes(ctx, children, nextDepth);
 
-    const branch: NavMenuNode =
-      rowVariant === 'group'
-        ? {
-            kind: 'group',
-            key: String(item.key! || item.path!),
-            label: titleCell,
-            children: childNodes,
-            className: clsx(`${baseClassName}-group`),
-          }
-        : {
-            kind: 'submenu',
-            key: String(item.key! || item.path!),
-            label: titleCell,
-            onTitleClick: (e) => item.onTitleClick?.(e),
-            children: childNodes,
-            className: clsx({
-              [`${baseClassName}-submenu`]: true,
-              [`${baseClassName}-submenu-has-icon`]: iconLevel && iconDom,
-            }),
-          };
+    /**
+     * 分组分隔不再使用 1px divider（与 SidebarMenu 一致），改由 `--pro-layout-nav-group-gap`
+     * 控制纵向间距；若业务侧需要 divider，可在外层 less 自行覆盖。
+     */
+    if (rowVariant === 'group') {
+      return {
+        kind: 'group',
+        key: String(item.key! || item.path!),
+        label: titleCell,
+        children: childNodes,
+        /** 基础类 `${c}-group` 由渲染层统一加，这里只负责数据 */
+      };
+    }
 
-    return [
-      branch,
-      useGroupChrome && depth === 0
-        ? ({
-            kind: 'divider' as const,
-            key: `${item.key! || item.path!}-group-divider`,
-            className: `${baseClassName}-divider`,
-            style: {
-              padding: 0,
-              borderBlockEnd: 0,
-              margin: ctx.collapsed ? '4px' : '6px 16px',
-              marginBlockStart: ctx.collapsed ? 4 : 8,
-              borderColor: 'var(--pro-layout-nav-color-divider)',
-            },
-          } as NavMenuNode)
-        : undefined,
-    ].filter(Boolean) as NavMenuNode[];
+    return {
+      kind: 'submenu',
+      key: String(item.key! || item.path!),
+      label: titleCell,
+      onTitleClick: item.onTitleClick,
+      children: childNodes,
+      /**
+       * 这里**不再**自挂 `${c}-submenu` 基础类，由渲染层（`ProLayoutNavMenu`）的
+       * `<li>` 统一加，避免主区/popup 两处都要管的同名 className 重复挂载。
+       * `hasIcon` 通过强类型字段透出，渲染层无需再做字符串嗅探。
+       */
+      hasIcon: !!iconDom,
+    };
   }
 
   const onTitle = (item as MenuDataItem & { onTitleClick?: () => void })
     .onTitleClick;
   return {
     kind: 'item' as const,
-    className: `${baseClassName}-menu-item`,
     disabled: item.disabled,
     key: String(item.key! || item.path!),
     onClick: onTitle ? () => onTitle() : undefined,
-    label: renderLeafRow(ctx, item, depth, collapsedGroupDepth),
+    label: renderLeafRow(ctx, item, depth),
   };
 }
 
@@ -396,12 +370,10 @@ function mapMenuDataToNavNodes(
   ctx: BaseMenuTreeContext,
   items: MenuDataItem[] = [],
   depth = 0,
-  collapsedGroupDepth = 0,
 ): NavMenuNode[] {
   return items
-    .map((item) => mapMenuItemToNavNode(ctx, item, depth, collapsedGroupDepth))
-    .filter(Boolean)
-    .flat(1) as NavMenuNode[];
+    .map((item) => mapMenuItemToNavNode(ctx, item, depth))
+    .filter(Boolean) as NavMenuNode[];
 }
 
 export { mapMenuDataToNavNodes };

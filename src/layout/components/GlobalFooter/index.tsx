@@ -29,7 +29,7 @@ const GlobalFooter = ({
   const context = useContext(ConfigProvider.ConfigContext);
   const baseClassName = context.getPrefixCls(prefixCls || 'pro-global-footer');
 
-  const { wrapSSR, hashId } = useStyle(baseClassName);
+  const { hashId } = useStyle(baseClassName);
 
   if (
     (links == null ||
@@ -40,17 +40,21 @@ const GlobalFooter = ({
     return null;
   }
 
-  return wrapSSR(
+  return (
     <div
       className={clsx(baseClassName, hashId, className)}
       style={style}
       data-testid="pro-global-footer"
     >
       {links && (
-        <div className={clsx(`${baseClassName}-list`, hashId)}>
+        <div
+          className={clsx(`${baseClassName}-list`, hashId)}
+          data-testid="pro-global-footer-list"
+        >
           {links.map((link) => (
             <a
               className={clsx(`${baseClassName}-list-link`, hashId)}
+              data-testid="pro-global-footer-list-link"
               key={link.key}
               title={link.key}
               target={link.blankTarget ? '_blank' : '_self'}
@@ -63,11 +67,14 @@ const GlobalFooter = ({
         </div>
       )}
       {copyright && (
-        <div className={clsx(`${baseClassName}-copyright`, hashId)}>
+        <div
+          className={clsx(`${baseClassName}-copyright`, hashId)}
+          data-testid="pro-global-footer-copyright"
+        >
           {copyright}
         </div>
       )}
-    </div>,
+    </div>
   );
 };
 

@@ -35,7 +35,7 @@ const Demo = () => {
           ],
         },
       ]}
-      layout="mix"
+      layout="side"
       location={{
         pathname: '/one/two',
       }}
@@ -174,8 +174,4 @@ const Demo = () => {
   );
 };
 
-export default () => (
-  <div style={{ padding: 24 }}>
-    <Demo />
-  </div>
-);
+export default Demo;
