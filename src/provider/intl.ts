@@ -53,11 +53,11 @@ export const createIntl = (
       get(localeMap, id.replace(/\[(\d+)\]/g, '.$1').split('.')) || '';
     if (msg) return msg;
     const localKey = locale.replace('_', '-');
-    if (localKey === 'zh-CN') {
+    if (localKey === 'en-US') {
       return defaultMessage;
     }
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    const intl = intlMap['zh-CN'];
+    const intl = intlMap['en-US'];
     return intl ? intl.getMessage(id, defaultMessage) : defaultMessage;
   },
   locale,
